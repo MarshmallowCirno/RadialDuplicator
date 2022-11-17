@@ -27,7 +27,7 @@ bl_info = {
                    "around the 3D cursor",
     "warning": "",
     "doc_url": "https://gumroad.com/products/KkDcd",
-    "category": "3D View",
+    "category": "Object",
 }
 
 
