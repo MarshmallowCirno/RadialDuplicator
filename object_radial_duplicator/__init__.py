@@ -116,6 +116,14 @@ else:
     from .modules.base_classes import apply_base
     from .modules.ui import apply_dialog
 
+    from .modules.radial_objects import (
+        radial_array_builder,
+        radial_array_object,
+        radial_duplicates_builder,
+        radial_duplicates_object,
+        radial_screw_builder,
+        radial_screw_object,
+    )
     from .modules.operators.radial_array import (
         radial_array_add,
         radial_array_apply,
