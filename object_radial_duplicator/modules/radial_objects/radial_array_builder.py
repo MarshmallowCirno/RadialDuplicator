@@ -125,6 +125,7 @@ def new_center_empty(context: Context, ob: Object, props: "properties.RadialArra
     """Add a new center empty to property group and return it."""
     center_empty = bpy.data.objects.new("RadialArrayEmpty", None)
     center_empty.empty_display_type = 'SPHERE'
+    center_empty.empty_display_size = max(ob.dimensions) / 2
     copy_collections(ob, center_empty)
     copy_local_view_state(context, center_empty)
     if ob.type != 'CURVE':
@@ -145,6 +146,7 @@ def new_offset_empty(context: Context, ob: Object, array_mod: ArrayModifier) -> 
     """Add a new offset empty to array modifier and return it."""
     offset_empty = bpy.data.objects.new("RadialArrayEmpty", None)
     offset_empty.empty_display_type = 'SPHERE'
+    offset_empty.empty_display_size = max(ob.dimensions) / 2
     copy_collections(ob, offset_empty)
     copy_local_view_state(context, offset_empty)
     if ob.type != 'CURVE':

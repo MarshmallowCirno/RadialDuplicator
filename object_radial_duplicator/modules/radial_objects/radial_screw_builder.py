@@ -122,6 +122,7 @@ def new_axis_empty(context: Context, ob: Object, screw_mod: ScrewModifier) -> Ob
     # noinspection PyTypeChecker
     axis_empty = bpy.data.objects.new("ScrewEmpty", None)
     axis_empty.empty_display_type = 'SPHERE'
+    axis_empty.empty_display_size = max(ob.dimensions) / 2
     copy_collections(ob, axis_empty)
     copy_local_view_state(context, axis_empty)
     if ob.type != 'CURVE':
