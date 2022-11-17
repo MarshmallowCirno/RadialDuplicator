@@ -27,6 +27,7 @@ bl_info = {
                    "around the 3D cursor",
     "warning": "",
     "doc_url": "https://gumroad.com/products/KkDcd",
+    "tracker_url": "https://blenderartists.org/t/radial-duplicator-radial-array-and-instances/1212033",
     "category": "Object",
 }
 
