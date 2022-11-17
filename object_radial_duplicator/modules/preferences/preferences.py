@@ -21,6 +21,16 @@ def update_sidebar_category(self, context):
     bpy.utils.register_class(RADDUPLCIATOR_PT_sidebar)
 
 
+def get_empties_collection(self):
+    return self.get("empties_collection", "Radial Empties")
+
+
+def set_empties_collection(self, value):
+    if value == "":
+        value = "Radial Empties"
+    self["empties_collection"] = value
+
+
 class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
     # this must match the add-on name, use '__package__'
     # when defining this in a submodule of a python package.
@@ -67,6 +77,18 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
         default="Item",
         update=update_sidebar_category
     )
+    move_empties_to_collection: bpy.props.BoolProperty(
+        name="Move Empties to Collection",
+        description="Move newly created empties to scene collection to hide them",
+        default=False,
+    )
+    empties_collection: bpy.props.StringProperty(
+        name="Empties Collection",
+        description="Name of the scene collection for newly created empties",
+        default="Radial Empties",
+        get=get_empties_collection,
+        set=set_empties_collection,
+    )
 
     def __init__(self):
         self.layout = None
@@ -96,6 +118,12 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
         col.prop(self, "use_wheelmouse")
         col.prop(self, "hide_sidebar")
         col.prop(self, "modal_buttons")
+
+        col.prop(self, "move_empties_to_collection")
+
+        sub = col.column()
+        sub.active = self.move_empties_to_collection
+        sub.prop(self, "empties_collection")
 
     def draw_keymap(self, box):
         col = box.column()

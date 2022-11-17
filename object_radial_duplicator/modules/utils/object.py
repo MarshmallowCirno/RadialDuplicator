@@ -36,6 +36,17 @@ def copy_collections(master_ob: Object, ob: Object) -> None:
             collection.objects.link(ob)
 
 
+def move_to_collection(collection_name: str, ob: Object) -> None:
+    """Move object to collection."""
+    collection = bpy.data.collections.get(collection_name)
+    if collection is None:
+        collection = bpy.data.collections.new(collection_name)
+        # Add collection to scene collection
+        bpy.context.scene.collection.children.link(collection)
+        collection.hide_viewport = True
+    collection.objects.link(ob)
+
+
 def copy_local_view_state(context: Context, ob: Object) -> None:
     """Copy local view state from context to object."""
     space = context.space_data

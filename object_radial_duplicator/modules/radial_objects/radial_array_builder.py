@@ -12,7 +12,9 @@ from mathutils import Matrix
 from mathutils import Vector
 
 from .. import properties
+from ...package import get_preferences
 from ..utils.object import copy_collections
+from ..utils.object import move_to_collection
 from ..utils.object import copy_local_view_state
 from ..utils.object import move_modifier_up
 
@@ -126,8 +128,12 @@ def new_center_empty(context: Context, ob: Object, props: "properties.RadialArra
     center_empty = bpy.data.objects.new("RadialArrayEmpty", None)
     center_empty.empty_display_type = 'SPHERE'
     center_empty.empty_display_size = max(ob.dimensions) / 2
-    copy_collections(ob, center_empty)
-    copy_local_view_state(context, center_empty)
+    if get_preferences().move_empties_to_collection:
+        empties_collection = get_preferences().empties_collection
+        move_to_collection(empties_collection, center_empty)
+    else:
+        copy_collections(ob, center_empty)
+        copy_local_view_state(context, center_empty)
     if ob.type != 'CURVE':
         # center_empty.hide_viewport = True
         center_empty.parent = ob
@@ -147,8 +153,12 @@ def new_offset_empty(context: Context, ob: Object, array_mod: ArrayModifier) -> 
     offset_empty = bpy.data.objects.new("RadialArrayEmpty", None)
     offset_empty.empty_display_type = 'SPHERE'
     offset_empty.empty_display_size = max(ob.dimensions) / 2
-    copy_collections(ob, offset_empty)
-    copy_local_view_state(context, offset_empty)
+    if get_preferences().move_empties_to_collection:
+        empties_collection = get_preferences().empties_collection
+        move_to_collection(empties_collection, offset_empty)
+    else:
+        copy_collections(ob, offset_empty)
+        copy_local_view_state(context, offset_empty)
     if ob.type != 'CURVE':
         # offset_empty.hide_viewport = True
         offset_empty.parent = ob
@@ -265,14 +275,22 @@ def fix_center_empty(ob: Object, center_empty: Optional[Object]) -> None:
     """Set correct center empty collections."""
     if center_empty is not None:
         if not center_empty.users_collection:
-            copy_collections(ob, center_empty)
+            if get_preferences().move_empties_to_collection:
+                empties_collection = get_preferences().empties_collection
+                move_to_collection(empties_collection, center_empty)
+            else:
+                copy_collections(ob, center_empty)
 
 
 def fix_offset_empty(ob: Object, offset_empty: Optional[Object]) -> None:
     """Set correct offset empty collections."""
     if offset_empty is not None:
         if not offset_empty.users_collection:
-            copy_collections(ob, offset_empty)
+            if get_preferences().move_empties_to_collection:
+                empties_collection = get_preferences().empties_collection
+                move_to_collection(empties_collection, offset_empty)
+            else:
+                copy_collections(ob, offset_empty)
 
 
 class ExistingRadialArrayBuilder:
@@ -364,7 +382,7 @@ class RadialArrayDirector:
         remove_junk_props(ob)
         fix_nodes_mod(ob, array_mod, nodes_mod)
         fix_center_empty(ob, center_empty)
-        fix_center_empty(ob, offset_empty)
+        fix_offset_empty(ob, offset_empty)
 
         return self.cls(self.object_radial_arrays,
                         radial_array_name,
@@ -389,7 +407,7 @@ class RadialArrayDirector:
         remove_junk_props(ob)
         fix_nodes_mod(ob, array_mod, nodes_mod)
         fix_center_empty(ob, center_empty)
-        fix_center_empty(ob, offset_empty)
+        fix_offset_empty(ob, offset_empty)
 
         return self.cls(self.object_radial_arrays,
                         radial_array_name,

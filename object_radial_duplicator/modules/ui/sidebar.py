@@ -117,7 +117,7 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
         ob = context.object
 
         props = None
-        if len(ob.radial_duplicator.duplicates) > 0:
+        if ob.children is not None and len(ob.radial_duplicator.duplicates) > 0:
             props = ob.radial_duplicator.duplicates[0]
         elif ob.parent is not None and len(ob.parent.radial_duplicator.duplicates) > 0:
             props = ob.parent.radial_duplicator.duplicates[0]

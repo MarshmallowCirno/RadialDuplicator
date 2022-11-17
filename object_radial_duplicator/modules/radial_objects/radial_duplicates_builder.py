@@ -5,7 +5,9 @@ from bpy.types import Context
 from bpy.types import Object
 
 from .. import properties
+from ...package import get_preferences
 from ..utils.object import copy_collections
+from ..utils.object import move_to_collection
 from ..utils.object import copy_local_view_state
 
 
@@ -25,8 +27,12 @@ def new_center_empty(context: Context, starting_ob: Object) -> Object:
     """Add a new center empty and return it."""
     center_empty = bpy.data.objects.new("RadialDuplicatesEmpty", None)
     center_empty.empty_display_type = 'SPHERE'
-    copy_collections(starting_ob, center_empty)
-    copy_local_view_state(context, center_empty)
+    if get_preferences().move_empties_to_collection:
+        empties_collection = get_preferences().empties_collection
+        move_to_collection(empties_collection, center_empty)
+    else:
+        copy_collections(starting_ob, center_empty)
+        copy_local_view_state(context, center_empty)
     # matrix_world of the newly created object updates after updating depsgraph
     context.evaluated_depsgraph_get().update()
     return center_empty
@@ -37,6 +43,24 @@ def new_props(center_empty: Object, starting_ob: Object) -> "properties.RadialDu
     props = center_empty.radial_duplicator.duplicates.add()
     props["starting_object"] = starting_ob
     return props
+
+
+def fix_center_empty(starting_ob: Object, center_empty: Optional[Object]) -> None:
+    """Set correct center empty collections."""
+    if center_empty is not None:
+        if not center_empty.users_collection:
+            if get_preferences().move_empties_to_collection:
+                empties_collection = get_preferences().empties_collection
+                move_to_collection(empties_collection, center_empty)
+            else:
+                copy_collections(starting_ob, center_empty)
+
+
+def fix_starting_ob(starting_ob: Object, center_empty: Optional[Object]) -> None:
+    """Set correct starting object collections."""
+    if starting_ob is not None:
+        if not starting_ob.users_collection:
+            copy_collections(center_empty, starting_ob)
 
 
 class ExistingRadialDuplicatesBuilder:
@@ -75,6 +99,9 @@ class RadialDuplicatesDirector:
         center_empty = builder.get_center_empty(props)
         starting_ob = builder.get_starting_ob(props, center_empty.children)
         dupli_obs = [ob for ob in center_empty.children if ob != starting_ob]
+
+        fix_center_empty(starting_ob, center_empty)
+        fix_starting_ob(starting_ob, center_empty)
 
         return self.cls(context, starting_ob, center_empty, dupli_obs)
 
