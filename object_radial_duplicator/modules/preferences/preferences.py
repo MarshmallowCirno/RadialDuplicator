@@ -49,7 +49,7 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
     use_wheelmouse: bpy.props.BoolProperty(
         name="Mousewheel Changes Count",
         description="Use the mousewheel for changing a count number in a modal operator",
-        default=False,
+        default=True,
     )
     hide_sidebar: bpy.props.BoolProperty(
         name="Auto-Hide Sidebar",
