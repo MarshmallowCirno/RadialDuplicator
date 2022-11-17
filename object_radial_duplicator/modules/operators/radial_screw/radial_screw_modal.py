@@ -193,7 +193,6 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         self.keymap_items: ModalKeyMapItem = self.preferences.keymaps["modal"].keymap_items
 
         self.initial_sidebar_state: bool = False
-        self.master_ob_initial_origin: Vector = Vector((0, 0, 0))
         self.radial_screw_initial_attrs: dict[RadialScrew:dict[str:str]] = {}
         self.radial_screw_last_set_pivot_points: dict[RadialScrew:str] = {}
 
@@ -231,7 +230,6 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         # Store initial settings, build radial screws,
         self.initial_sidebar_state = context.space_data.show_region_ui
         self.collect_objects_with_radial_screw(context)
-        self.master_ob_initial_origin = self.master_ob.matrix_world.to_translation()
         self.build_radial_screws_on_init(context)
         if self.master_radial_screw not in self.new_radial_screws:
             self.set_operator_properties_from_master_radial_screw()
@@ -290,36 +288,48 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                     if slave_radial_screw is None:
                         slave_radial_screw = slave_ob_radial_screws.new()
                         self.new_radial_screws.append(slave_radial_screw)
-                    self.slave_radial_screws.append(slave_radial_screw)
-                    self.store_existing_radial_screw_attrs(slave_radial_screw)
+                        self.slave_radial_screws.append(slave_radial_screw)
+                        self.store_new_radial_screw_attrs(slave_radial_screw)
+                    else:
+                        self.slave_radial_screws.append(slave_radial_screw)
+                        self.store_existing_radial_screw_attrs(slave_radial_screw)
         return success
 
     def build_new_radial_screws(self, context) -> None:
         """Build new radial screw classes."""
         self.master_radial_screw = self.master_ob_radial_screws.new()
         self.new_radial_screws.append(self.master_radial_screw)
+        self.store_new_radial_screw_attrs(self.master_radial_screw)
         if self.slave_obs:
             for slave_ob in self.slave_obs:
                 slave_ob_radial_screws = ObjectRadialScrews(context, slave_ob)
                 slave_radial_screw = slave_ob_radial_screws.new()
                 self.new_radial_screws.append(slave_radial_screw)
                 self.slave_radial_screws.append(slave_radial_screw)
+                self.store_new_radial_screw_attrs(slave_radial_screw)
+
+    def store_new_radial_screw_attrs(self, radial_screw: RadialScrew) -> None:
+        """Store initial pivot point value of newly created screws"""
+        if radial_screw not in self.radial_screw_initial_attrs:
+
+            pivot_point = 'AXIS_EMPTY'
+            pivot_point_co_world = radial_screw.pivot_point.co_world
+
+            self.radial_screw_initial_attrs[radial_screw] = {
+                "pivot_point": pivot_point,
+                "pivot_point_co_world": pivot_point_co_world
+            }
 
     def store_existing_radial_screw_attrs(self, radial_screw: RadialScrew) -> None:
         """Store existing radial screw classes initial attributes on initialization or after switching to it
         to be able to restore them on CANCEL"""
-        name = radial_screw.name
-        if name not in self.radial_screw_initial_attrs.keys():
+        if radial_screw not in self.radial_screw_initial_attrs.keys():
             props = radial_screw.properties.value
-            is_top = self.master_ob_radial_screws[-1] == self.master_radial_screw
 
-            if is_top:
-                pivot_point = 'ORIGIN'
-            else:
-                pivot_point = 'AXIS_EMPTY'
+            pivot_point = 'AXIS_EMPTY'
             pivot_point_co_world = radial_screw.pivot_point.co_world
 
-            self.radial_screw_initial_attrs[name] = {
+            self.radial_screw_initial_attrs[radial_screw] = {
                 "spin_orientation": props.spin_orientation,
                 "spin_orientation_matrix_object": props.spin_orientation_matrix_object.copy(),
                 "spin_axis": props.spin_axis,
@@ -334,16 +344,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
     def set_operator_properties_from_master_radial_screw(self) -> None:
         """Set operator properties to active radial screw properties on initialization or screw switching."""
-        name = self.master_radial_screw.name
         props = self.master_radial_screw.properties.value
-        last_set_pivot_point = self.radial_screw_last_set_pivot_points.get(name)
-        is_top = self.master_ob_radial_screws[-1] == self.master_radial_screw
+        last_set_pivot_point = self.radial_screw_last_set_pivot_points.get(self.master_radial_screw)
 
         # on switching try to find last pivot => center empty => object origin
         if last_set_pivot_point is not None:
             self.pivot_point = last_set_pivot_point
-        elif is_top:
-            self.pivot_point = 'ORIGIN'
         else:
             self.pivot_point = 'AXIS_EMPTY'
 
@@ -371,6 +377,8 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
     def modify_all_radial_screws(self) -> None:
         """Modify radial screws with operator properties."""
         for radial_screw in [self.master_radial_screw] + self.slave_radial_screws:
+
+            # get initial Origin and Axis Empty location, not current
             pivot_point = self.get_pivot_point(radial_screw)
 
             radial_screw.modify(self.spin_orientation,
@@ -385,20 +393,14 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
             self.modified_radial_screws.add(radial_screw)
 
-            self.radial_screw_last_set_pivot_points[radial_screw.name] = self.pivot_point
-            # store first used pivot point value of newly created screws
-            if radial_screw.name not in self.radial_screw_initial_attrs:
-                pivot_point_co_world = radial_screw.pivot_point.co_world
-                self.radial_screw_initial_attrs[radial_screw.name] = {
-                    "pivot_point": pivot_point,
-                    "pivot_point_co_world": pivot_point_co_world
-                }
+            # store pivot, so it can be retrieved after switching array
+            self.radial_screw_last_set_pivot_points[radial_screw] = self.pivot_point
 
     def get_pivot_point(self, radial_screw) -> Union[str, Vector]:
         """Get pivot point value taking into account changes of object origin. Allows toggling between stored initial
         pivot point."""
-        last_set_pivot_point = self.radial_screw_last_set_pivot_points.get(radial_screw.name)
-        initial_attrs = self.radial_screw_initial_attrs.get(radial_screw.name)
+        last_set_pivot_point = self.radial_screw_last_set_pivot_points.get(radial_screw)
+        initial_attrs = self.radial_screw_initial_attrs.get(radial_screw)
 
         # Pivot point remains the same
         if self.pivot_point == last_set_pivot_point:
@@ -708,7 +710,6 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
             elif event.type in {'ESC', 'RIGHTMOUSE'}:
                 self.restore_all_radial_screws()
-                self.restore_ob_origin(context)
                 self.finish_modal(context)
                 return {'CANCELLED'}
 
@@ -751,34 +752,20 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
     def set_next_pivot_point(self, context) -> None:
         """Set next pivot point from cycle."""
-        is_top = self.master_ob_radial_screws[-1] == self.master_radial_screw
 
         if context.mode == 'OBJECT':
-            if is_top:
-                self.pivot_point = {
-                    'CURSOR': 'ORIGIN',
-                    'ORIGIN': 'CURSOR'
-                }[self.pivot_point]
-            else:
-                self.pivot_point = {
-                    'CURSOR': 'ORIGIN',
-                    'ORIGIN': 'AXIS_EMPTY',
-                    'AXIS_EMPTY': 'CURSOR'
-                }[self.pivot_point]
+            self.pivot_point = {
+                'CURSOR': 'ORIGIN',
+                'ORIGIN': 'AXIS_EMPTY',
+                'AXIS_EMPTY': 'CURSOR'
+            }[self.pivot_point]
         elif context.mode == 'EDIT_MESH':
-            if is_top:
-                self.pivot_point = {
-                    'CURSOR': 'ORIGIN',
-                    'ORIGIN': 'MESH_SELECTION',
-                    'MESH_SELECTION': 'CURSOR'
-                }[self.pivot_point]
-            else:
-                self.pivot_point = {
-                    'CURSOR': 'ORIGIN',
-                    'ORIGIN': 'AXIS_EMPTY',
-                    'AXIS_EMPTY': 'MESH_SELECTION',
-                    'MESH_SELECTION': 'CURSOR'
-                }[self.pivot_point]
+            self.pivot_point = {
+                'CURSOR': 'ORIGIN',
+                'ORIGIN': 'AXIS_EMPTY',
+                'AXIS_EMPTY': 'MESH_SELECTION',
+                'MESH_SELECTION': 'CURSOR'
+            }[self.pivot_point]
 
     def switch_radial_screw(self, context, direction: str) -> None:
         """Search for next/prev radial screw and switch to it if it's found."""
@@ -806,10 +793,6 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         self.restore_radial_duplicates_pivot_points_or_refresh()
         self.remove_new_radial_screws()
 
-    def restore_ob_origin(self, context) -> None:
-        if not self.master_ob_radial_screws.value:
-            set_origin(context, self.master_ob, self.master_ob_initial_origin)
-
     def remove_new_radial_screws(self) -> None:
         """Remove radial screws added after invoking modal."""
         for radial_screw in self.new_radial_screws:
@@ -818,9 +801,8 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
     def restore_radial_screw_attributes(self) -> None:
         """Fill radial screw properties with initial attributes."""
         for radial_screw in self.modified_radial_screws - set(self.new_radial_screws):
-            name = radial_screw.name
             props = radial_screw.properties.value
-            attrs = self.radial_screw_initial_attrs[name]
+            attrs = self.radial_screw_initial_attrs[radial_screw]
 
             props["spin_orientation_matrix_object"] = np.array(attrs["spin_orientation_matrix_object"]).T.ravel()
             spin_orientation_enums = props.bl_rna.properties["spin_orientation"].enum_items
@@ -837,8 +819,8 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
     def restore_radial_duplicates_pivot_points_or_refresh(self):
         for radial_screw in self.modified_radial_screws:
-            if radial_screw.name in self.radial_screw_last_set_pivot_points:
-                co = self.radial_screw_initial_attrs[radial_screw.name]["pivot_point_co_world"]
+            if radial_screw in self.radial_screw_last_set_pivot_points:
+                co = self.radial_screw_initial_attrs[radial_screw]["pivot_point_co_world"]
                 radial_screw.set_pivot_point(co)
             else:
                 radial_screw.refresh()

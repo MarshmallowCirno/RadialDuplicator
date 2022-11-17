@@ -42,7 +42,6 @@ from ...utils.modal import event_match_kmi
 from ...utils.modal import event_type_is_digit
 from ...utils.modal import event_type_to_digit
 from ...utils.modal import get_property_default
-from ...utils.object import set_origin
 from ...utils.object_data import data_is_selected
 from ...utils.object_data import get_data_center_co_world
 from ...utils.opengl_draw import draw_bg
@@ -188,7 +187,6 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         self.keymap_items: ModalKeyMapItem = self.preferences.keymaps["modal"].keymap_items
 
         self.sidebar_initial_state: bool = False
-        self.master_ob_initial_origin: Vector = Vector((0, 0, 0))
         self.radial_array_initial_attrs: dict[RadialArray:dict[str:str]] = {}
         self.radial_array_last_set_pivot_points: dict[RadialArray:str] = {}
 
@@ -224,7 +222,6 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         # Store initial settings, build radial arrays,
         self.sidebar_initial_state = context.space_data.show_region_ui
         self.collect_objects_with_radial_array(context)
-        self.master_ob_initial_origin = self.master_ob.matrix_world.to_translation()
         self.build_radial_arrays_on_init(context)
         if self.master_radial_array not in self.new_radial_arrays:
             self.set_operator_properties_from_master_radial_array()
@@ -283,26 +280,46 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                     if slave_radial_array is None:
                         slave_radial_array = slave_ob_radial_arrays.new()
                         self.new_radial_arrays.append(slave_radial_array)
-                    self.slave_radial_arrays.append(slave_radial_array)
-                    self.store_existing_radial_array_attrs(slave_radial_array)
+                        self.slave_radial_arrays.append(slave_radial_array)
+                        self.store_new_radial_array_attrs(slave_radial_array)
+                    else:
+                        self.slave_radial_arrays.append(slave_radial_array)
+                        self.store_existing_radial_array_attrs(slave_radial_array)
         return success
 
     def build_new_radial_arrays(self, context) -> None:
         """Build new radial array classes."""
         self.master_radial_array = self.master_ob_radial_arrays.new()
         self.new_radial_arrays.append(self.master_radial_array)
+        self.store_new_radial_array_attrs(self.master_radial_array)
         if self.slave_obs:
             for slave_ob in self.slave_obs:
                 slave_ob_radial_arrays = ObjectRadialArrays(context, slave_ob)
                 slave_radial_array = slave_ob_radial_arrays.new()
                 self.new_radial_arrays.append(slave_radial_array)
                 self.slave_radial_arrays.append(slave_radial_array)
+                self.store_new_radial_array_attrs(slave_radial_array)
+
+    def store_new_radial_array_attrs(self, radial_array: RadialArray) -> None:
+        """Store initial pivot point value of newly created arrays"""
+        if radial_array not in self.radial_array_initial_attrs:
+            center_empty = radial_array.center_empty.value
+
+            if center_empty is not None:
+                pivot_point = 'CENTER_EMPTY'
+            else:
+                pivot_point = 'ORIGIN'
+            pivot_point_co_world = radial_array.pivot_point.co_world
+
+            self.radial_array_initial_attrs[radial_array] = {
+                "pivot_point": pivot_point,
+                "pivot_point_co_world": pivot_point_co_world
+            }
 
     def store_existing_radial_array_attrs(self, radial_array: RadialArray) -> None:
         """Store existing radial array classes initial attributes on initialization or after switching to it
         to be able to restore them on CANCEL"""
-        name = radial_array.name
-        if name not in self.radial_array_initial_attrs.keys():
+        if radial_array not in self.radial_array_initial_attrs.keys():
             props = radial_array.properties.value
             center_empty = radial_array.center_empty.value
 
@@ -312,7 +329,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 pivot_point = 'ORIGIN'
             pivot_point_co_world = radial_array.pivot_point.co_world
 
-            self.radial_array_initial_attrs[name] = {
+            self.radial_array_initial_attrs[radial_array] = {
                 "spin_orientation": props.spin_orientation,
                 "spin_orientation_matrix_object": props.spin_orientation_matrix_object.copy(),
                 "spin_axis": props.spin_axis,
@@ -326,9 +343,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
     def set_operator_properties_from_master_radial_array(self) -> None:
         """Set operator properties to active existing radial array properties on initialization or array switching."""
-        name = self.master_radial_array.name
         props = self.master_radial_array.properties.value
-        last_set_pivot_point = self.radial_array_last_set_pivot_points.get(name)
+        last_set_pivot_point = self.radial_array_last_set_pivot_points.get(self.master_radial_array)
         center_empty = self.master_radial_array.center_empty.value
 
         # on switching try to find last pivot => center empty => object origin
@@ -362,6 +378,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
     def modify_all_radial_arrays(self) -> None:
         """Modify radial arrays with operator properties."""
         for radial_array in [self.master_radial_array] + self.slave_radial_arrays:
+
+            # get initial Origin and Center Empty location, not current
             pivot_point = self.get_pivot_point(radial_array)
 
             radial_array.modify(self.spin_orientation,
@@ -372,23 +390,16 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                                 self.end_angle,
                                 self.height_offset,
                                 pivot_point)
-
             self.modified_radial_arrays.add(radial_array)
 
-            self.radial_array_last_set_pivot_points[radial_array.name] = self.pivot_point
-            # store first used pivot point value of newly created arrays
-            if radial_array.name not in self.radial_array_initial_attrs:
-                pivot_point_co_world = radial_array.pivot_point.co_world
-                self.radial_array_initial_attrs[radial_array.name] = {
-                    "pivot_point": pivot_point,
-                    "pivot_point_co_world": pivot_point_co_world
-                }
+            # store pivot, so it can be retrieved after switching array
+            self.radial_array_last_set_pivot_points[radial_array] = self.pivot_point
 
     def get_pivot_point(self, radial_array) -> Union[str, Vector]:
         """Get pivot point value taking into account changes of object origin. Allows toggling between stored initial
         pivot point."""
-        last_set_pivot_point = self.radial_array_last_set_pivot_points.get(radial_array.name)
-        initial_attrs = self.radial_array_initial_attrs.get(radial_array.name)
+        last_set_pivot_point = self.radial_array_last_set_pivot_points.get(radial_array)
+        initial_attrs = self.radial_array_initial_attrs.get(radial_array)
 
         # Pivot point remains the same
         if last_set_pivot_point == self.pivot_point:
@@ -675,7 +686,6 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
             elif event.type in {'ESC', 'RIGHTMOUSE'}:
                 self.restore_all_radial_arrays()
-                self.restore_ob_origin(context)
                 self.finish_modal(context)
                 return {'CANCELLED'}
 
@@ -769,10 +779,6 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         self.restore_radial_array_pivot_points_or_refresh()
         self.remove_new_radial_arrays()
 
-    def restore_ob_origin(self, context) -> None:
-        if not self.master_ob_radial_arrays.value:
-            set_origin(context, self.master_ob, self.master_ob_initial_origin)
-
     def remove_new_radial_arrays(self) -> None:
         """Remove radial arrays added after invoking modal."""
         for radial_array in self.new_radial_arrays:
@@ -781,9 +787,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
     def restore_radial_array_attributes(self) -> None:
         """Fill radial array properties with initial attributes."""
         for radial_array in self.modified_radial_arrays - set(self.new_radial_arrays):
-            name = radial_array.name
             props = radial_array.properties.value
-            attrs = self.radial_array_initial_attrs[name]
+            attrs = self.radial_array_initial_attrs[radial_array]
 
             props["spin_orientation_matrix_object"] = np.array(attrs["spin_orientation_matrix_object"]).T.ravel()
             spin_orientation_enums = props.bl_rna.properties["spin_orientation"].enum_items
@@ -799,8 +804,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
     def restore_radial_array_pivot_points_or_refresh(self):
         for radial_array in self.modified_radial_arrays:
-            if radial_array.name in self.radial_array_last_set_pivot_points:
-                co = self.radial_array_initial_attrs[radial_array.name]["pivot_point_co_world"]
+            if radial_array in self.radial_array_last_set_pivot_points:
+                co = self.radial_array_initial_attrs[radial_array]["pivot_point_co_world"]
                 radial_array.set_pivot_point(co)
             else:
                 radial_array.refresh()

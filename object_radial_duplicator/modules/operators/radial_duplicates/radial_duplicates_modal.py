@@ -239,6 +239,15 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         self.radial_duplicates = RadialDuplicates.new(context, context.object)
         self.is_new = True
 
+    def store_new_radial_duplicates_attrs(self) -> None:
+        """Store initial pivot point value of newly created duplicates"""
+        if self.radial_duplicates_initial_attrs is None:
+            pivot_point_co_world = self.radial_duplicates.pivot_point.co_world
+            self.radial_duplicates_initial_attrs = {
+                "pivot_point": 'CENTER_EMPTY',
+                "pivot_point_co_world": pivot_point_co_world
+            }
+
     def store_existing_radial_duplicates_attrs(self) -> None:
         """Store radial duplicates class initial attributes."""
         props = self.radial_duplicates.properties.value
@@ -279,6 +288,8 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
 
     def modify_radial_duplicates(self) -> None:
         """Modify radial duplicates with operator properties."""
+
+        # get initial Origin location, not current
         pivot_point = self.get_pivot_point()
 
         self.radial_duplicates.modify(
@@ -286,14 +297,9 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         )
 
         self.is_modified = True
+
+        # store pivot, so it can be retrieved after switching array
         self.last_set_pivot_point = self.pivot_point
-        # store first used pivot point value of newly created duplicates
-        if self.radial_duplicates_initial_attrs is None:
-            pivot_point_co_world = self.radial_duplicates.pivot_point.co_world
-            self.radial_duplicates_initial_attrs = {
-                "pivot_point": pivot_point,
-                "pivot_point_co_world": pivot_point_co_world
-            }
 
     def get_pivot_point(self) -> Union[str, Vector]:
         """Get pivot point value taking into account changes of object origin. Allows toggling between stored initial
