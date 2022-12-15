@@ -151,10 +151,15 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
             row = sub.row()
             row.prop(props, "spin_axis", text="Axis", expand=True)
 
+            # Rotation row
+            row = sub.row()
+            row.prop(props, "duplicates_rotation", text="Rotation", expand=True)
+
             # Sliders
             sub = box.column(align=True)
             sub.prop(props, "count", text="Count")
             sub.prop(props, "end_angle", text="End Angle")
+            sub.prop(props, "end_scale", text="End Scale")
             sub.prop(props, "height_offset", text="Height Offset")
 
             # Pivot

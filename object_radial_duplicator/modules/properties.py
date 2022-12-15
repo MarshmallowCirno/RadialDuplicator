@@ -266,8 +266,10 @@ def update_duplicates(self, context):
     radial_duplicate.modify(
         self.spin_orientation,
         self.spin_axis,
+        self.duplicates_rotation,
         self.count,
         self.end_angle,
+        self.end_scale,
         self.height_offset
     )
 
@@ -312,6 +314,18 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
         default='Z',
         update=update_duplicates,
     )
+    # noinspection PyTypeChecker
+    duplicates_rotation: bpy.props.EnumProperty(
+        name="Duplicates Rotation",
+        description="Rotation of duplicated objects around their own origin",
+        items=[
+            ('FOLLOW', "Follow", "Follow rotation around the spin axis"),
+            ('KEEP', "Keep", "Keep initial object rotation"),
+            ('RANDOM', "Random", "Randomize object rotation around the spin axis"),
+        ],
+        default='FOLLOW',
+        update=update_duplicates,
+    )
     count: bpy.props.IntProperty(
         name="Count",
         description="Total number of duplicates to make",
@@ -321,12 +335,21 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
     )
     end_angle: bpy.props.FloatProperty(
         name="End Angle",
-        description="Rotation placement for the last duplicated geometry as a number of degrees "
-        "offset from 0 degrees",
+        description="Rotation placement for the last duplicated object as a number of degrees "
+                    "offset from 0 degrees",
         subtype='ANGLE',
         unit='ROTATION',
         step=100,
         default=radians(360),
+        update=update_duplicates,
+    )
+    end_scale: bpy.props.FloatProperty(
+        name="End Scale",
+        description="Scale of the last duplicated object as a factor",
+        min=0.001,
+        step=1,
+        default=1.0,
+        precision=3,
         update=update_duplicates,
     )
     height_offset: bpy.props.FloatProperty(

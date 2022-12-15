@@ -23,7 +23,7 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
             ('LOCAL', "Local", "Align the duplication axes to selected objects' local space", 'ORIENTATION_LOCAL', 1),
             ('VIEW', "View", "Align the duplication axes to the window", 'ORIENTATION_VIEW', 2),
         ],
-        default='GLOBAL',
+        default='LOCAL',
         options={'SKIP_SAVE'},
     )
     # noinspection PyTypeChecker
@@ -36,6 +36,18 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
             ('Z', "Z", "Spin around axis Z"),
         ],
         default='Z',
+        options={'SKIP_SAVE'},
+    )
+    # noinspection PyTypeChecker
+    duplicates_rotation: bpy.props.EnumProperty(
+        name="Duplicates Rotation",
+        description="Rotation of duplicated objects around their own origin",
+        items=[
+            ('FOLLOW', "Follow", "Follow rotation around the spin axis"),
+            ('KEEP', "Keep", "Keep initial object rotation"),
+            ('RANDOM', "Random", "Randomize object rotation around the spin axis"),
+        ],
+        default='FOLLOW',
         options={'SKIP_SAVE'},
     )
     count: bpy.props.IntProperty(
@@ -55,6 +67,15 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
         unit='ROTATION',
         step=100,
         default=radians(360),
+        options={'SKIP_SAVE'},
+    )
+    end_scale: bpy.props.FloatProperty(
+        name="End Scale",
+        description="Scale of the last duplicated object as a factor",
+        min=0.001,
+        step=1,
+        default=1.0,
+        precision=3,
         options={'SKIP_SAVE'},
     )
     height_offset: bpy.props.FloatProperty(
@@ -129,8 +150,10 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
             radial_duplicates.modify(
                 self.spin_orientation,
                 self.spin_axis,
+                self.duplicates_rotation,
                 self.count,
                 self.end_angle,
+                self.end_scale,
                 self.height_offset,
                 self.pivot_point,
             )
@@ -146,8 +169,12 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
         row = layout.row()
         row.prop(self, "spin_axis", expand=True)
 
+        row = layout.row()
+        row.prop(self, "duplicates_rotation", expand=True)
+
         layout.prop(self, "count")
         layout.prop(self, "end_angle")
+        layout.prop(self, "end_scale")
         layout.prop(self, "height_offset")
         layout.prop(self, "pivot_point")
 

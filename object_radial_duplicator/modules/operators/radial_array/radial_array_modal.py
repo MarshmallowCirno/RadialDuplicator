@@ -435,6 +435,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 if self.count != rounded:
                     self.count = rounded
                     self.modify_all_radial_arrays()
+                    self.redraw_header(context)
 
             if self.radius_offset_changing:
                 divisor = 6000 if event.shift else 600
@@ -533,6 +534,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                     self.cancel_typing(context)
                     self.count += 1
                     self.modify_all_radial_arrays()
+                    self.redraw_header(context)
                 else:
                     return {'PASS_THROUGH'}
 
@@ -541,6 +543,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                     self.cancel_typing(context)
                     self.count = max(1, self.count - 1)
                     self.modify_all_radial_arrays()
+                    self.redraw_header(context)
                 else:
                     return {'PASS_THROUGH'}
 
@@ -587,6 +590,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "spin_axis"):
                 self.spin_axis = {
@@ -597,24 +601,28 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "x_axis"):
                 self.spin_axis = 'X'
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "y_axis"):
                 self.spin_axis = 'Y'
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "z_axis"):
                 self.spin_axis = 'Z'
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "pivot_point"):
                 self.set_next_pivot_point(context)
@@ -646,6 +654,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             elif event_match_kmi(self, event, "reset_count"):
                 self.count = self.count_float = get_property_default(self, "count")
                 self.modify_all_radial_arrays()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "reset_radius_offset"):
                 self.radius_offset = self.radius_offset_float = get_property_default(self, "radius_offset")
@@ -843,9 +852,9 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
     def redraw_header(self, context) -> None:
         """Draw count and spin axis in the header."""
         text = (
-            f"count: {self.count}  Spin Axis: {self.spin_axis.title()}"
+            f"count: {self.count}  Spin Axis: {self.spin_orientation.title()} {self.spin_axis.title()}"
             if self.typed_string is None
-            else f"count: [{self.typed_string}|]  Spin Axis: {self.spin_axis.title()}"
+            else f"count: [{self.typed_string}|]  Spin Axis: {self.spin_orientation.title()} {self.spin_axis.title()}"
         )
         context.area.header_text_set(text)
 

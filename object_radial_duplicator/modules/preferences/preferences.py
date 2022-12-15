@@ -10,7 +10,7 @@ from ..utils.layout_draw import draw_modal_keymap_items
 from ...package import get_addon_name
 
 
-def update_sidebar_category(self, context):
+def update_sidebar_category(self, _):
     is_panel = hasattr(bpy.types, 'RADDUPLCIATOR_PT_sidebar')
     if is_panel:
         try:

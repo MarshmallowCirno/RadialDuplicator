@@ -87,6 +87,18 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         default='Z',
         options={'SKIP_SAVE'},
     )
+    # noinspection PyTypeChecker
+    duplicates_rotation: bpy.props.EnumProperty(
+        name="Duplicates Rotation",
+        description="Rotation of duplicated objects around their own origin",
+        items=[
+            ('FOLLOW', "Follow", "Follow rotation around the spin axis"),
+            ('KEEP', "Keep", "Keep initial object rotation"),
+            ('RANDOM', "Random", "Randomize object rotation around the spin axis"),
+        ],
+        default='FOLLOW',
+        options={'SKIP_SAVE'},
+    )
     count: bpy.props.IntProperty(
         name="Count",
         description="Total number of duplicates to make",
@@ -102,6 +114,15 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         unit='ROTATION',
         step=100,
         default=radians(360),
+        options={'SKIP_SAVE'},
+    )
+    end_scale: bpy.props.FloatProperty(
+        name="End Scale",
+        description="Scale of the last duplicated object as a factor",
+        min=0.001,
+        step=1,
+        default=1.0,
+        precision=3,
         options={'SKIP_SAVE'},
     )
     height_offset: bpy.props.FloatProperty(
@@ -173,10 +194,12 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
 
         self.count_float: float = self.count
         self.end_angle_float: float = self.end_angle
+        self.end_scale_float: float = self.end_scale
         self.height_offset_float: float = self.height_offset
 
         self.count_changing: bool = False
         self.end_angle_changing: bool = False
+        self.end_scale_changing: bool = False
         self.height_offset_changing: bool = False
 
         self.last_mouse_co: tuple[float, float] = (0, 0)
@@ -257,8 +280,10 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             "spin_orientation": props.spin_orientation,
             "spin_orientation_matrix_object": props.spin_orientation_matrix_object.copy(),
             "spin_axis": props.spin_axis,
+            "duplicates_rotation": props.duplicates_rotation,
             "count": props.count,
             "end_angle": props.end_angle,
+            "end_scale": props.end_scale,
             "height_offset": props.height_offset,
             "pivot_point": 'CENTER_EMPTY',
             "pivot_point_co_world": pivot_point_co_world}
@@ -269,8 +294,10 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
 
         self.spin_orientation = props.spin_orientation
         self.spin_axis = props.spin_axis
+        self.duplicates_rotation = props.duplicates_rotation
         self.count = self.count_float = props.count
         self.end_angle = self.end_angle_float = props.end_angle
+        self.end_scale = props.end_scale
         self.height_offset = self.height_offset_float = props.height_offset
         self.pivot_point = 'CENTER_EMPTY'
 
@@ -293,7 +320,14 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         pivot_point = self.get_pivot_point()
 
         self.radial_duplicates.modify(
-            self.spin_orientation, self.spin_axis, self.count, self.end_angle, self.height_offset, pivot_point
+            self.spin_orientation,
+            self.spin_axis,
+            self.duplicates_rotation,
+            self.count,
+            self.end_angle,
+            self.end_scale,
+            self.height_offset,
+            pivot_point,
         )
 
         self.is_modified = True
@@ -340,6 +374,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 if self.count != rounded:
                     self.count = rounded
                     self.modify_radial_duplicates()
+                    self.redraw_header(context)
 
             if self.end_angle_changing:
                 divisor = 900 if event.shift else 100
@@ -361,6 +396,22 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                     self.build_3d_shader_batches()
                     context.region.tag_redraw()
 
+            if self.end_scale_changing:
+                divisor = 1800 if event.shift else 200
+                offset = event_mouse_offset_x / divisor
+                self.end_scale_float = max(0.001, self.end_scale_float + offset)
+                if event.ctrl or (context.scene.tool_settings.use_snap
+                                  and context.scene.tool_settings.use_snap_rotate
+                                  and context.scene.tool_settings.snap_elements == 'INCREMENT'
+                                  and not event.ctrl):
+                    rounded = round(self.end_scale_float / .1) * .1
+                    if self.end_scale != rounded:
+                        self.end_scale = rounded
+                        self.modify_radial_duplicates()
+                else:
+                    self.end_scale = self.end_scale_float
+                    self.modify_radial_duplicates()
+
             if self.height_offset_changing:
                 divisor = 1800 if event.shift else 200
                 offset = event_mouse_offset_x / divisor
@@ -373,13 +424,9 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                     if self.height_offset != rounded:
                         self.height_offset = rounded
                         self.modify_radial_duplicates()
-                        self.build_3d_shader_batches()
-                        context.region.tag_redraw()
                 else:
                     self.height_offset = self.height_offset_float
                     self.modify_radial_duplicates()
-                    self.build_3d_shader_batches()
-                    context.region.tag_redraw()
 
             self.last_mouse_co = (event.mouse_region_x, event.mouse_region_y)
 
@@ -392,6 +439,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                     self.cancel_typing(context)
                     self.count += 1
                     self.modify_radial_duplicates()
+                    self.redraw_header(context)
                 else:
                     return {'PASS_THROUGH'}
 
@@ -400,6 +448,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                     self.cancel_typing(context)
                     self.count = max(1, self.count - 1)
                     self.modify_radial_duplicates()
+                    self.redraw_header(context)
                 else:
                     return {'PASS_THROUGH'}
 
@@ -446,6 +495,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 self.modify_radial_duplicates()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "spin_axis"):
                 self.spin_axis = {
@@ -456,24 +506,32 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 self.modify_radial_duplicates()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "x_axis"):
                 self.spin_axis = 'X'
                 self.modify_radial_duplicates()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "y_axis"):
                 self.spin_axis = 'Y'
                 self.modify_radial_duplicates()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "z_axis"):
                 self.spin_axis = 'Z'
                 self.modify_radial_duplicates()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
+                self.redraw_header(context)
+
+            elif event_match_kmi(self, event, "duplicates_rotation"):
+                self.set_next_duplicates_rotation()
+                self.modify_radial_duplicates()
 
             elif event_match_kmi(self, event, "pivot_point"):
                 self.set_next_pivot_point(context)
@@ -490,6 +548,10 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 self.end_angle_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
+            elif event_match_kmi(self, event, "end_scale_changing"):
+                self.end_scale_changing = True
+                context.window.cursor_modal_set('MOVE_X')
+
             elif event_match_kmi(self, event, "height_offset_changing"):
                 self.height_offset_changing = True
                 context.window.cursor_modal_set('MOVE_X')
@@ -497,6 +559,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             elif event_match_kmi(self, event, "reset_count"):
                 self.count = self.count_float = get_property_default(self, "count")
                 self.modify_radial_duplicates()
+                self.redraw_header(context)
 
             elif event_match_kmi(self, event, "reset_end_angle"):
                 self.end_angle = self.end_angle_float = get_property_default(self, "end_angle")
@@ -504,11 +567,13 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
+            elif event_match_kmi(self, event, "reset_end_scale"):
+                self.end_scale = self.end_scale_float = get_property_default(self, "end_scale")
+                self.modify_radial_duplicates()
+
             elif event_match_kmi(self, event, "reset_height_offset"):
                 self.height_offset = self.height_offset_float = get_property_default(self, "height_offset")
                 self.modify_radial_duplicates()
-                self.build_3d_shader_batches()
-                context.region.tag_redraw()
 
             elif event_match_kmi(self, event, "remove"):
                 self.remove_radial_duplicates()
@@ -534,6 +599,10 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 self.end_angle_changing = False
                 context.window.cursor_modal_restore()
 
+            elif event_match_kmi(self, event, "end_scale_changing", release=True):
+                self.end_scale_changing = False
+                context.window.cursor_modal_restore()
+
             elif event_match_kmi(self, event, "height_offset_changing", release=True):
                 self.height_offset_changing = False
                 context.window.cursor_modal_restore()
@@ -544,6 +613,14 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         if self.typed_string is not None:
             self.typed_string = None
             self.redraw_header(context)
+
+    def set_next_duplicates_rotation(self) -> None:
+        """Set next duplicates rotation from cycle."""
+        self.duplicates_rotation = {
+            'FOLLOW': 'KEEP',
+            'KEEP': 'RANDOM',
+            'RANDOM': 'FOLLOW'
+        }[self.duplicates_rotation]
 
     def set_next_pivot_point(self, context) -> None:
         """Set next pivot point from cycle."""
@@ -597,9 +674,12 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         props["spin_orientation"] = spin_orientation_enums.find(attrs["spin_orientation"])
         spin_axis_enums = props.bl_rna.properties["spin_axis"].enum_items
         props["spin_axis"] = spin_axis_enums.find(attrs["spin_axis"])
+        duplicates_rotation_enums = props.bl_rna.properties["duplicates_rotation"].enum_items
+        props["duplicates_rotation"] = duplicates_rotation_enums.find(attrs["duplicates_rotation"])
 
         props["count"] = attrs["count"]
         props["end_angle"] = attrs["end_angle"]
+        props["end_scale"] = attrs["end_scale"]
         props["height_offset"] = attrs["height_offset"]
 
     def remove_radial_duplicates(self) -> None:
@@ -619,9 +699,9 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
     def redraw_header(self, context) -> None:
         """Draw count and spin axis in the header."""
         text = (
-            f"count: {self.count}  Spin Axis: {self.spin_axis.title()}"
+            f"count: {self.count}  Spin Axis: {self.spin_orientation.title()} {self.spin_axis.title()}"
             if self.typed_string is None
-            else f"count: [{self.typed_string}|]  Spin Axis: {self.spin_axis.title()}"
+            else f"count: [{self.typed_string}|]  Spin Axis: {self.spin_orientation.title()} {self.spin_axis.title()}"
         )
         context.area.header_text_set(text)
 
@@ -673,8 +753,14 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         spin_orientation_key = self.keymap_items["spin_orientation"].type
         spin_orientation = op_properties["spin_orientation"].enum_items[self.spin_orientation].name
 
+        duplicates_rotation_key = self.keymap_items["duplicates_rotation"].type
+        duplicates_rotation = op_properties["duplicates_rotation"].enum_items[self.duplicates_rotation].name
+
         end_angle_key = self.keymap_items["end_angle_changing"].type
         end_angle = round(degrees(self.end_angle), 2)
+
+        end_scale_key = self.keymap_items["end_scale_changing"].type
+        end_scale = self.end_scale
 
         height_offset_key = self.keymap_items["height_offset_changing"].type
         height_offset = round(self.height_offset, 2)
@@ -698,10 +784,20 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             (f" ({spin_orientation_key})", key_color),
             (f" {spin_orientation}", val_color),
         ]
+        duplicates_rotation_line = [
+            ("Rotation:", main_color),
+            (f" ({duplicates_rotation_key})", key_color),
+            (f" {duplicates_rotation}", val_color),
+        ]
         end_angle_line = [
             ("End Angle:", main_color),
             (f" ({end_angle_key})", key_color),
             (f" {end_angle:.2f}°", val_color)
+        ]
+        end_scale_line = [
+            ("End Scale:", main_color),
+            (f" ({end_scale_key})", key_color),
+            (f" {end_scale:.3f}", val_color)
         ]
         height_offset_line = [
             ("Height Offset:", main_color),
@@ -719,7 +815,9 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             count_line,
             spin_axis_line,
             spin_orientation_line,
+            duplicates_rotation_line,
             end_angle_line,
+            end_scale_line,
             height_offset_line,
             pivot_point_line,
         ]
