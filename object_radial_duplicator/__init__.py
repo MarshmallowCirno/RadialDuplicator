@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Radial Duplicator",
     "author": "MarshmallowCirno",
-    "version": (2, 0),
+    "version": (2, 1),
     "blender": (3, 3, 1),
     "location": "View3D > Sidebar > Item tab",
     "description": "Create radial array, screw or add linked duplicates of selected object and place them radially "
