@@ -294,6 +294,7 @@ class RadialDuplicatesDuplicatedObjects:
 
                 # scale
                 scale_vec = Vector((spaced_scale[i],) * 3)
+
                 sca = (
                     Matrix.Translation(dupli_ob.matrix_world.to_translation())
                     @ Matrix.Diagonal(scale_vec).to_4x4()

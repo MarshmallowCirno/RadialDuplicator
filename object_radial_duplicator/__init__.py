@@ -20,8 +20,8 @@
 bl_info = {
     "name": "Radial Duplicator",
     "author": "MarshmallowCirno",
-    "version": (2, 1),
-    "blender": (3, 3, 1),
+    "version": (2, 2),
+    "blender": (4, 0, 0),
     "location": "View3D > Sidebar > Item tab",
     "description": "Create radial array, screw or add linked duplicates of selected object and place them radially "
                    "around the 3D cursor",
@@ -40,7 +40,7 @@ reloadable_modules = (
     "multiuser_data_changer",
     "object",
     "object_data",
-    "opengl_draw",
+    "gpu_draw",
     "scene",
     "text",
     "theme",
@@ -104,7 +104,7 @@ else:
         multiuser_data_changer,
         object,
         object_data,
-        opengl_draw,
+        gpu_draw,
         scene,
         text,
         theme,

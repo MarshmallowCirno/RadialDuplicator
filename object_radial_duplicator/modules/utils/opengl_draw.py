@@ -1,7 +1,5 @@
 from gpu_extras.batch import batch_for_shader
-from bgl import glDisable
-from bgl import glEnable
-from bgl import GL_BLEND
+import gpu
 
 
 def draw_bg(shader, content_x_right, content_y_bottom, content_x_left, content_y_top, padding, color):
@@ -48,6 +46,6 @@ def draw_bg(shader, content_x_right, content_y_bottom, content_x_left, content_y
     batch = batch_for_shader(shader, 'TRIS', {"pos": vertices}, indices=indices)
     shader.bind()
     shader.uniform_float("color", color)
-    glEnable(GL_BLEND)
+    gpu.state.blend_set('ALPHA')
     batch.draw(shader)
-    glDisable(GL_BLEND)
+    gpu.state.blend_set('NONE')

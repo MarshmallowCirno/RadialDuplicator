@@ -267,14 +267,16 @@ class RadialScrewScrewMod:
     def apply(self) -> str:
         """Apply screw modifier if it exists and return success message confirmation."""
         ob = self._radial_screw.object
+        context = self._radial_screw.context
 
         message = (
             "Applied modifier was not first, result may not be as expected"
             if ob.modifiers.find(self.value.name) > 0
             else ""
         )
-        # noinspection PyArgumentList
-        bpy.ops.object.modifier_apply({"object": ob}, modifier=self.value.name)
+
+        with context.temp_override(object=ob):
+            bpy.ops.object.modifier_apply(modifier=self.value.name)
         self.value = None
         return message
 
@@ -371,9 +373,10 @@ class RadialScrewNodesMod:
         """Apply nodes modifier if it exists."""
         if self.value is not None:
             ob = self._radial_screw.object
+            context = self._radial_screw.context
 
-            # noinspection PyArgumentList
-            bpy.ops.object.modifier_apply({"object": ob}, modifier=self.value.name)
+            with context.temp_override(object=ob):
+                bpy.ops.object.modifier_apply(modifier=self.value.name)
             self.value = None
 
     def remove(self) -> None:

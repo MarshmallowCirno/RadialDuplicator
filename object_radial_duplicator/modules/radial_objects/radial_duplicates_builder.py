@@ -25,7 +25,7 @@ def find_starting_ob(props: "properties.RadialDuplicatesPropsGroup") -> Optional
 
 def new_center_empty(context: Context, starting_ob: Object) -> Object:
     """Add a new center empty and return it."""
-    center_empty = bpy.data.objects.new("RadialDuplicatesEmpty", None)
+    center_empty = bpy.data.objects.new(name="RadialDuplicatesEmpty", object_data=None)
     center_empty.empty_display_type = 'SPHERE'
     if get_preferences().move_empties_to_collection:
         empties_collection = get_preferences().empties_collection

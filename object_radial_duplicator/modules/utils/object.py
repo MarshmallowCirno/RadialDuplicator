@@ -1,8 +1,9 @@
+from typing import Literal
+
 import bpy
 import bmesh
 from bpy.types import Context
 from bpy.types import Object
-from bpy.types import Modifier
 from mathutils import Matrix
 from mathutils import Vector
 
@@ -94,11 +95,22 @@ def set_origin(context: Context, ob: Object, co_world: Vector) -> None:
     context.evaluated_depsgraph_get().update()
 
 
-def move_modifier_up(ob: Object, mod: Modifier, iters: int) -> None:
-    """Move modifier up in the stack."""
-    for i in range(iters):
-        # noinspection PyArgumentList
-        bpy.ops.object.modifier_move_up({"object": ob}, modifier=mod.name)
+def get_modifier_index(current_index: int, reference_index: int, position: Literal['BEFORE', 'AFTER']) -> int:
+    """Get new modifier index for moving modifier to it."""
+    match position:
+        case 'BEFORE':
+            if current_index > reference_index:
+                new_index = reference_index
+            else:
+                new_index = reference_index - 1
+        case 'AFTER':
+            if reference_index > current_index:
+                new_index = reference_index
+            else:
+                new_index = reference_index + 1
+        case _:
+            raise ValueError("Position is invalid")
+    return new_index
 
 
 def clear_parent_and_keep_mx(ob: Object) -> None:

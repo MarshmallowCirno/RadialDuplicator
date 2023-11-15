@@ -11,7 +11,7 @@ def get_text_block_dimensions(text_lines: list[list[tuple[str, Any]]],
                               font_size: int,
                               dpi: int):
     """Get dimensions of text lines."""
-    blf.size(font_id, font_size, dpi)
+    blf.size(font_id, font_size)
 
     text_block_height = (blf.dimensions(font_id, "M")[1]
                          * (2 * len(text_lines) - 1)
@@ -33,7 +33,7 @@ def draw_text_block(text_lines: list[list[tuple[str, Any]]],
                     font_size: int = 12,
                     dpi: int = 0):
     """Draw text lines from right top to bottom."""
-    blf.size(font_id, font_size, dpi)
+    blf.size(font_id, font_size)
     blf.enable(font_id, blf.SHADOW)
     blf.shadow_offset(font_id, 1, -1)
     blf.shadow(font_id, 3, *(0, 0, 0, 1))

@@ -14,9 +14,9 @@ from mathutils import Vector
 from .. import properties
 from ...package import get_preferences
 from ..utils.object import copy_collections
+from ..utils.object import get_modifier_index
 from ..utils.object import move_to_collection
 from ..utils.object import copy_local_view_state
-from ..utils.object import move_modifier_up
 
 
 def find_array_mod(ob: Object, name: str) -> Optional[ArrayModifier]:
@@ -30,8 +30,8 @@ def find_nodes_mod(ob: Object, name: str) -> Optional[NodesModifier]:
     match = re.search(r"\.[0-9]+$", name)
     index = "" if match is None else match.group(0)
     base_name = name.removesuffix(index)
-    nodes_mod = next((mod for mod in ob.modifiers
-                      if mod.type == 'NODES' and mod.name == base_name + "Offset" + index), None)
+    nodes_mods = filter(lambda mod: mod.type == 'NODES' and mod.name == f"{base_name}Offset{index}", ob.modifiers)
+    nodes_mod = next(nodes_mods, None)
     return nodes_mod
 
 
@@ -55,7 +55,8 @@ def find_center_empty(props: "properties.RadialArrayPropsGroup") -> Optional[Obj
 
 def new_array_mod(context: Context, ob: Object) -> ArrayModifier:
     """Add a new array modifier to object and sort it."""
-    array_mod = ob.modifiers.new(name="RadialArray", type='ARRAY')
+    # noinspection PyTypeChecker
+    array_mod: ArrayModifier = ob.modifiers.new(name="RadialArray", type='ARRAY')
     array_mod.use_object_offset = True
     array_mod.use_relative_offset = False
     array_mod.use_merge_vertices = True
@@ -73,7 +74,8 @@ def new_nodes_mod(
     match = re.search(r"\.[0-9]+$", name)
     index = "" if match is None else match.group(0)
     base_name = array_mod.name.removesuffix(index)
-    nodes_mod = ob.modifiers.new(name="%sOffset%s" % (base_name, index), type='NODES')
+    # noinspection PyTypeChecker
+    nodes_mod: NodesModifier = ob.modifiers.new(name=f"{base_name}Offset{index}", type='NODES')
     nodes_mod.node_group = new_node_group()
     nodes_mod.show_expanded = False
     nodes_mod.show_viewport = props.show_viewport
@@ -83,9 +85,13 @@ def new_nodes_mod(
 
 def new_node_group() -> NodeTree:
     """Add a new node group and return it."""
-    node_group = bpy.data.node_groups.new("RadialArrayNodes", type='GeometryNodeTree')
+    node_group = bpy.data.node_groups.new(name="RadialArrayNodes", type='GeometryNodeTree')
+
     group_input = node_group.nodes.new(type='NodeGroupInput')
     group_output = node_group.nodes.new(type='NodeGroupOutput')
+
+    node_group.interface.new_socket(name="Geometry", in_out='INPUT', socket_type="NodeSocketGeometry")
+    node_group.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type="NodeSocketGeometry")
 
     radius_offset = node_group.nodes.new(type='GeometryNodeTransform')
     radius_offset.name = "RadiusOffset"
@@ -125,7 +131,7 @@ def new_props(ob: Object, array_mod: ArrayModifier, name: str) -> "properties.Ra
 
 def new_center_empty(context: Context, ob: Object, props: "properties.RadialArrayPropsGroup") -> Object:
     """Add a new center empty to property group and return it."""
-    center_empty = bpy.data.objects.new("RadialArrayEmpty", None)
+    center_empty = bpy.data.objects.new(name="RadialArrayEmpty", object_data=None)
     center_empty.empty_display_type = 'SPHERE'
     center_empty.empty_display_size = max(ob.dimensions) / 2
     if get_preferences().move_empties_to_collection:
@@ -150,7 +156,7 @@ def new_center_empty(context: Context, ob: Object, props: "properties.RadialArra
 
 def new_offset_empty(context: Context, ob: Object, array_mod: ArrayModifier) -> Object:
     """Add a new offset empty to array modifier and return it."""
-    offset_empty = bpy.data.objects.new("RadialArrayEmpty", None)
+    offset_empty = bpy.data.objects.new(name="RadialArrayEmpty", object_data=None)
     offset_empty.empty_display_type = 'SPHERE'
     offset_empty.empty_display_size = max(ob.dimensions) / 2
     if get_preferences().move_empties_to_collection:
@@ -178,34 +184,43 @@ def sort_array_mod(ob: Object, array_mod: ArrayModifier) -> None:
     array_mod_idx = ob.modifiers.find(array_mod.name)
     other_mods = [mod for mod in ob.modifiers if mod != array_mod]
 
-    another_array_mod = next((mod for mod in reversed(other_mods) if mod.type == 'ARRAY'), None)
+    another_array_mods = filter(lambda mod: mod.type == 'ARRAY', reversed(other_mods))
+    another_array_mod = next(another_array_mods, None)
     if another_array_mod is not None:
         another_array_mod_idx = ob.modifiers.find(another_array_mod.name)
-        iters = array_mod_idx - another_array_mod_idx - 1  # after array
-
+        new_array_mod_idx = get_modifier_index(current_index=array_mod_idx,
+                                               reference_index=another_array_mod_idx,
+                                               position='AFTER')
     else:
-        screw_mod = next((mod for mod in reversed(other_mods) if mod.type == 'SCREW'), None)
+        screw_mods = filter(lambda mod: mod.type == 'SCREW', reversed(other_mods))
+        screw_mod = next(screw_mods, None)
         if screw_mod is not None:
             screw_mod_idx = ob.modifiers.find(screw_mod.name)
-            iters = array_mod_idx - screw_mod_idx - 1  # after screw
+            new_array_mod_idx = get_modifier_index(current_index=array_mod_idx,
+                                                   reference_index=screw_mod_idx,
+                                                   position='AFTER')
         else:
-            mirror_mod = next((mod for mod in reversed(other_mods) if mod.type == 'MIRROR' and
-                               mod.mirror_object is None), None)
+            mirror_mods = filter(lambda mod: mod.type == 'MIRROR' and mod.mirror_object is None, reversed(other_mods))
+            mirror_mod = next(mirror_mods, None)
             if mirror_mod is not None:
                 mirror_mod_idx = ob.modifiers.find(mirror_mod.name)
-                iters = array_mod_idx - mirror_mod_idx - 1  # after mirror
+                new_array_mod_idx = get_modifier_index(current_index=array_mod_idx,
+                                                       reference_index=mirror_mod_idx,
+                                                       position='AFTER')
             else:
-                iters = array_mod_idx  # top
+                new_array_mod_idx = 0
 
-    move_modifier_up(ob, array_mod, iters)
+    ob.modifiers.move(from_index=array_mod_idx, to_index=new_array_mod_idx)
 
 
 def sort_nodes_mod(ob: Object, nodes_mod: NodesModifier, array_mod: ArrayModifier) -> None:
     """Place nodes modifier before array modifier."""
     nodes_mod_idx = ob.modifiers.find(nodes_mod.name)
     array_mod_idx = ob.modifiers.find(array_mod.name)
-    iters = nodes_mod_idx - array_mod_idx  # before array
-    move_modifier_up(ob, nodes_mod, iters)
+    new_nodes_mod_idx = get_modifier_index(current_index=nodes_mod_idx,
+                                           reference_index=array_mod_idx,
+                                           position='BEFORE')
+    ob.modifiers.move(from_index=nodes_mod_idx, to_index=new_nodes_mod_idx)
 
 
 def restore_props(

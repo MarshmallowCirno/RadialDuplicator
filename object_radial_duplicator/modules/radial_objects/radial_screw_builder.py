@@ -14,7 +14,7 @@ from mathutils import Vector
 from .. import properties
 from ..utils.object import copy_collections
 from ..utils.object import copy_local_view_state
-from ..utils.object import move_modifier_up
+from ..utils.object import get_modifier_index
 
 
 def find_screw_mod(ob: Object, name: str) -> Optional[ScrewModifier]:
@@ -28,8 +28,8 @@ def find_nodes_mod(ob: Object, name: str) -> Optional[NodesModifier]:
     match = re.search(r"\.[0-9]+$", name)
     index = "" if match is None else match.group(0)
     base_name = name.removesuffix(index)
-    nodes_mod = next((mod for mod in ob.modifiers
-                      if mod.type == 'NODES' and mod.name == base_name + "Offset" + index), None)
+    nodes_mods = filter(lambda mod: mod.type == 'NODES' and mod.name == f"{base_name}Offset{index}", ob.modifiers)
+    nodes_mod = next(nodes_mods, None)
     return nodes_mod
 
 
@@ -66,7 +66,7 @@ def new_nodes_mod(
     index = "" if match is None else match.group(0)
     base_name = screw_mod.name.removesuffix(index)
     # noinspection PyTypeChecker
-    nodes_mod: NodesModifier = ob.modifiers.new(name="%sOffset%s" % (base_name, index), type='NODES')
+    nodes_mod: NodesModifier = ob.modifiers.new(name=f"{base_name}Offset{index}", type='NODES')
     nodes_mod.node_group = new_node_group()
     nodes_mod.show_expanded = False
     nodes_mod.show_viewport = props.show_viewport
@@ -76,9 +76,13 @@ def new_nodes_mod(
 
 def new_node_group() -> NodeTree:
     """Add a new node group and return it."""
-    node_group = bpy.data.node_groups.new("RadialScrewNodes", type='GeometryNodeTree')
+    node_group = bpy.data.node_groups.new(name="RadialScrewNodes", type='GeometryNodeTree')
+
     group_input = node_group.nodes.new(type='NodeGroupInput')
     group_output = node_group.nodes.new(type='NodeGroupOutput')
+
+    node_group.interface.new_socket(name="Geometry", in_out='INPUT', socket_type="NodeSocketGeometry")
+    node_group.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type="NodeSocketGeometry")
 
     radius_offset = node_group.nodes.new(type='GeometryNodeTransform')
     radius_offset.name = "RadiusOffset"
@@ -111,7 +115,6 @@ def new_props(ob: Object, screw_mod: ScrewModifier, name: str) -> "properties.Ra
     props = ob.radial_duplicator.screws.add()
     props["name"] = name
     mx = ob.matrix_world.inverted()
-    # noinspection PyTypeChecker
     props["spin_orientation_matrix_object"] = np.array(mx).ravel()
     props["show_viewport"] = screw_mod.show_viewport
     return props
@@ -119,8 +122,7 @@ def new_props(ob: Object, screw_mod: ScrewModifier, name: str) -> "properties.Ra
 
 def new_axis_empty(context: Context, ob: Object, screw_mod: ScrewModifier) -> Object:
     """Add a new center empty to property group and return it."""
-    # noinspection PyTypeChecker
-    axis_empty = bpy.data.objects.new("ScrewEmpty", None)
+    axis_empty = bpy.data.objects.new(name="ScrewEmpty", object_data=None)
     axis_empty.empty_display_type = 'SPHERE'
     axis_empty.empty_display_size = max(ob.dimensions) / 2
     copy_collections(ob, axis_empty)
@@ -144,30 +146,35 @@ def sort_screw_mod(ob: Object, screw_mod: ScrewModifier) -> None:
     screw_mod_idx = ob.modifiers.find(screw_mod.name)
     other_mods = [mod for mod in ob.modifiers if mod != screw_mod]
 
-    another_screw_mod = next((mod for mod in reversed(other_mods) if mod.type == 'SCREW'), None)
+    another_screw_mods = filter(lambda mod: mod.type == 'SCREW', reversed(other_mods))
+    another_screw_mod = next(another_screw_mods, None)
     if another_screw_mod is not None:
         another_screw_mod_idx = ob.modifiers.find(another_screw_mod.name)
-        iters = screw_mod_idx - another_screw_mod_idx - 1  # after screw
-
+        new_screw_mod_idx = get_modifier_index(current_index=screw_mod_idx,
+                                               reference_index=another_screw_mod_idx,
+                                               position='AFTER')
     else:
-        mirror_mod = next((mod for mod in reversed(other_mods) if mod.type == 'MIRROR' and
-                           mod.mirror_object is None), None)
+        mirror_mods = filter(lambda mod: mod.type == 'MIRROR' and mod.mirror_object is None, reversed(other_mods))
+        mirror_mod = next(mirror_mods, None)
         if mirror_mod is not None:
             mirror_mod_idx = ob.modifiers.find(mirror_mod.name)
-            iters = screw_mod_idx - mirror_mod_idx - 1  # after mirror
-
+            new_screw_mod_idx = get_modifier_index(current_index=screw_mod_idx,
+                                                   reference_index=mirror_mod_idx,
+                                                   position='AFTER')
         else:
-            iters = screw_mod_idx  # top
+            new_screw_mod_idx = 0
 
-    move_modifier_up(ob, screw_mod, iters)
+    ob.modifiers.move(from_index=screw_mod_idx, to_index=new_screw_mod_idx)
 
 
 def sort_nodes_mod(ob: Object, nodes_mod: NodesModifier, screw_mod: ScrewModifier) -> None:
     """Place nodes modifier before screw modifier."""
     nodes_mod_idx = ob.modifiers.find(nodes_mod.name)
     screw_mod_idx = ob.modifiers.find(screw_mod.name)
-    iters = nodes_mod_idx - screw_mod_idx  # before screw
-    move_modifier_up(ob, nodes_mod, iters)
+    new_nodes_mod_idx = get_modifier_index(current_index=nodes_mod_idx,
+                                           reference_index=screw_mod_idx,
+                                           position='BEFORE')
+    ob.modifiers.move(from_index=nodes_mod_idx, to_index=new_nodes_mod_idx)
 
 
 def restore_props(

@@ -6,24 +6,6 @@ from typing import Optional, Union
 import bpy
 import gpu
 import numpy as np
-from bgl import glEnable
-from bgl import glClear
-from bgl import glColorMask
-from bgl import glDisable
-from bgl import glLineWidth
-from bgl import glStencilFunc
-from bgl import glStencilMask
-from bgl import glStencilOp
-from bgl import GL_ALWAYS
-from bgl import GL_BLEND
-from bgl import GL_EQUAL
-from bgl import GL_FALSE
-from bgl import GL_INVERT
-from bgl import GL_KEEP
-from bgl import GL_LINE_SMOOTH
-from bgl import GL_STENCIL_BUFFER_BIT
-from bgl import GL_STENCIL_TEST
-from bgl import GL_TRUE
 from bpy.types import Object
 from gpu_extras.batch import batch_for_shader
 from gpu.types import GPUBatch
@@ -44,7 +26,7 @@ from ...utils.modal import event_type_to_digit
 from ...utils.modal import get_property_default
 from ...utils.object_data import data_is_selected
 from ...utils.object_data import get_data_center_co_world
-from ...utils.opengl_draw import draw_bg
+from ...utils.gpu_draw import draw_bg
 from ...utils.scene import get_unit
 from ...utils.text import draw_text_block
 from ...utils.text import get_text_block_dimensions
@@ -53,8 +35,8 @@ from ...utils.view3d import get_non_overlap_width
 from ...utils.view3d import hide_sidebar
 from ...utils.view3d import restore_sidebar
 
-shader_2d = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-shader_3d = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+shader_2d = gpu.shader.from_builtin('UNIFORM_COLOR')
+shader_3d = gpu.shader.from_builtin('UNIFORM_COLOR')
 
 
 class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
@@ -1130,15 +1112,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
             self.angle_lines_batch = batch_for_shader(shader_3d, 'LINES', {"pos": vertices})
 
-            # Build angle fill stencil mask batch
-            stencil_mask_vertices = axis_circle_vertices
-            stencil_mask_vertices.append(axis_circle_vertices[0])
-            stencil_mask_vertices.insert(0, pivot_point_co_world)
-
-            self.angle_fill_stencil_mask_batch = batch_for_shader(shader_3d, 'TRI_FAN', {"pos": stencil_mask_vertices})
-
             # Build angle fill batch
-            step_count = int(ceil(abs((self.end_angle - self.start_angle) / radians(90))))
+            step_count = int(ceil(abs((self.end_angle - self.start_angle) / radians(5))))
             if step_count == 0:
                 step_angle = 0
             else:
@@ -1147,13 +1122,12 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             fill_vertices = [pivot_point_co_world]
             for i in range(step_count + 1):
                 step_rot_matrix = Matrix.Rotation(step_angle * i, 4, spin_vec_spin)
-                step_co_spin = step_rot_matrix @ start_angle_co_spin * 2
+                step_co_spin = step_rot_matrix @ start_angle_co_spin
                 step_co_world = spin_orientation_matrix_world @ step_co_spin
                 fill_vertices.append(step_co_world)
 
             self.angle_fill_batch = batch_for_shader(shader_3d, 'TRI_FAN', {"pos": fill_vertices})
 
-    # noinspection PyTypeChecker
     def draw_3d_shaders(self, context):
         """Draw 3d shaders (angle lines and axis circle)."""
         axis_color = get_axis_color(context, self.spin_axis)
@@ -1161,9 +1135,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         shader_3d.bind()
         shader_3d.uniform_float("color", axis_color)
 
-        glLineWidth(3)
-        glEnable(GL_BLEND)
-        glEnable(GL_LINE_SMOOTH)
+        gpu.state.line_width_set(3)
+        gpu.state.blend_set('ALPHA')
 
         # Axis circle
         self.axis_circle_batch.draw(shader_3d)
@@ -1176,29 +1149,13 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             # Angle lines
             self.angle_lines_batch.draw(shader_3d)
 
-            # Angle fill stencil mask
-            glClear(GL_STENCIL_BUFFER_BIT)
-            glEnable(GL_STENCIL_TEST)
-            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE)
-            glStencilFunc(GL_ALWAYS, 0, 1)
-            glStencilOp(GL_KEEP, GL_KEEP, GL_INVERT)
-            glStencilMask(1)
-
-            shader_3d.uniform_float("color", (1, 1, 1, 1))
-            self.angle_fill_stencil_mask_batch.draw(shader_3d)
-
-            glStencilFunc(GL_EQUAL, 1, 1)
-            glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP)
-            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE)
-
             # Angle fill
             fill_color = (*list(axis_color)[:-1], 0.2)
             shader_3d.uniform_float("color", fill_color)
             self.angle_fill_batch.draw(shader_3d)
 
-        glDisable(GL_LINE_SMOOTH)
-        glDisable(GL_BLEND)
-        glLineWidth(1)
+        gpu.state.blend_set('NONE')
+        gpu.state.line_width_set(1)
 
 
 classes = (
