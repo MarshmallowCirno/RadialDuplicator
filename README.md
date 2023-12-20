@@ -1,4 +1,4 @@
-# Theme Switcher
+# Radial Duplicator
 Blender add-on for fast creation of radial (circular) arrays, screw modifiers and duplicating objects radially around the 3D cursor.
 
 ### Links
