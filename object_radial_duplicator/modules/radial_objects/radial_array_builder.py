@@ -12,7 +12,7 @@ from mathutils import Matrix
 from mathutils import Vector
 
 from .. import properties
-from ...package import get_preferences
+from ...addon_info import get_preferences
 from ..utils.object import copy_collections
 from ..utils.object import get_modifier_index
 from ..utils.object import move_to_collection

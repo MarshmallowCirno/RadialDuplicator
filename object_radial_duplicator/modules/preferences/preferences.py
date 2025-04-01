@@ -7,7 +7,7 @@ from ..properties import OverlayColors
 from ..ui.sidebar import RADDUPLCIATOR_PT_sidebar
 from ..utils.layout_draw import draw_keymap_items
 from ..utils.layout_draw import draw_modal_keymap_items
-from ...package import get_addon_name
+from ...addon_info import get_addon_name
 
 
 def update_sidebar_category(self, _):

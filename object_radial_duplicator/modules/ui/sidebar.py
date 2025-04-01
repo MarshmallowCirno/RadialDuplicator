@@ -1,6 +1,6 @@
 import bpy
 
-from ...package import get_preferences
+from ...addon_info import get_preferences
 
 
 class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):

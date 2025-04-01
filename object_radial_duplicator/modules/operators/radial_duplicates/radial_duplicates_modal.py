@@ -12,7 +12,7 @@ from gpu.types import GPUBatch
 from mathutils import Matrix
 from mathutils import Vector
 
-from ....package import get_preferences
+from ....addon_info import get_preferences
 from ...preferences.preferences import RADDUPLICATOR_preferences
 from ...properties import ModalKeyMapItem
 from ...radial_objects.radial_duplicates_object import RadialDuplicates

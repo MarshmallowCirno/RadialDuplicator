@@ -5,7 +5,7 @@ from bpy.types import Context
 from bpy.types import Object
 
 from .. import properties
-from ...package import get_preferences
+from ...addon_info import get_preferences
 from ..utils.object import copy_collections
 from ..utils.object import move_to_collection
 from ..utils.object import copy_local_view_state

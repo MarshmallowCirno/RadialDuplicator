@@ -1,4 +1,4 @@
-from ...package import get_preferences
+from ...addon_info import get_preferences
 
 
 def hide_sidebar(context):
