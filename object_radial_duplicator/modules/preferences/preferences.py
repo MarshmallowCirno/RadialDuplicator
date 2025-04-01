@@ -90,9 +90,6 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
         set=set_empties_collection,
     )
 
-    def __init__(self):
-        self.layout = None
-
     def draw(self, _):
         layout = self.layout
         col = layout.column(align=True)

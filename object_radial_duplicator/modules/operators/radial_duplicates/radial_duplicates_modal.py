@@ -1,7 +1,7 @@
 from math import ceil
 from math import degrees
 from math import radians
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import bpy
 import gpu
@@ -155,7 +155,10 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 and not (ob.data is not None and ob.data.library is not None)
         )
 
-    def __init__(self):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if bpy.app.version >= (4, 4, 0):
+            super().__init__(*args, **kwargs)
+
         self.master_ob: Optional[Object] = None   # active selected object
         self.slave_obs: Optional[list[Object]] = None  # nonactive selected objects
 
