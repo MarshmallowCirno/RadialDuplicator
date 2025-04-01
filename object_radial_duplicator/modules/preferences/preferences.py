@@ -7,7 +7,7 @@ from ..properties import OverlayColors
 from ..ui.sidebar import RADDUPLCIATOR_PT_sidebar
 from ..utils.layout_draw import draw_keymap_items
 from ..utils.layout_draw import draw_modal_keymap_items
-from ...addon_info import get_addon_name
+from ... import addon_info
 
 
 def update_sidebar_category(self, _):
@@ -34,7 +34,7 @@ def set_empties_collection(self, value):
 class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
     # this must match the add-on name, use '__package__'
     # when defining this in a submodule of a python package.
-    bl_idname = get_addon_name()
+    bl_idname = addon_info.get_addon_package()
 
     # noinspection PyTypeChecker
     tabs: bpy.props.EnumProperty(

@@ -1,19 +1,17 @@
-import os
+from typing import TYPE_CHECKING, cast
 
 import bpy
 
-
-def get_addon_path():
-    return os.path.dirname(__file__)
-
-
-def get_addon_name():
-    return os.path.basename(os.path.dirname(os.path.realpath(__file__)))
+if TYPE_CHECKING:
+    from .modules.preferences.preferences import RADDUPLICATOR_preferences
 
 
-def get_preferences():
-    return bpy.context.preferences.addons[__package__].preferences
-
-
-def get_package():
+def get_addon_package() -> str:
+    """Return the name of the addon package."""
+    assert isinstance(__package__, str)
     return __package__
+
+
+def get_preferences() -> "RADDUPLICATOR_preferences":
+    assert isinstance(__package__, str)
+    return cast("RADDUPLICATOR_preferences", bpy.context.preferences.addons[__package__].preferences)
