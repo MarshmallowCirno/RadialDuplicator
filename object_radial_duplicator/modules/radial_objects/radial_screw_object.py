@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from typing import Literal, Self, cast
+from typing import TYPE_CHECKING, Literal, Self, cast
 
 import bpy
 import mathutils
 import numpy as np
 
-from .. import properties
 from ..radial_objects import radial_screw_builder
 from ..utils import math_utils, object_data_utils, object_utils
+
+if TYPE_CHECKING:
+    from .. import properties
 
 
 class ObjectRadialScrews:
@@ -184,7 +186,7 @@ class RadialScrewProps:
         # So, don't store collection item and retrieve it by a name instead.
         ob = self._radial_screw.object
         name = self._radial_screw.name
-        props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+        props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
         props = props_collection.screws.get(name)
         assert props is not None
@@ -242,7 +244,7 @@ class RadialScrewProps:
         """Remove property group."""
         ob = self._radial_screw.object
         name = self._radial_screw.name
-        props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+        props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
         props_id = props_collection.screws.find(name)
         props_collection.screws.remove(props_id)

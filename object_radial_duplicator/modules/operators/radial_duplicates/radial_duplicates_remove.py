@@ -4,11 +4,12 @@ from typing import TYPE_CHECKING, cast
 
 import bpy
 
-from ... import properties
 from ...radial_objects import radial_duplicates_object
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
+
+    from ... import properties
 
 
 class RADDUPLICATOR_OT_radial_duplicates_remove(bpy.types.Operator):
@@ -39,15 +40,15 @@ class RADDUPLICATOR_OT_radial_duplicates_remove(bpy.types.Operator):
         ob = context.object
         if (
             ob.parent is not None
-            and len(cast(properties.RadialCollections, ob.parent.radial_duplicator).duplicates) > 0  # pyright: ignore[reportAttributeAccessIssue]
+            and len(cast("properties.RadialCollections", ob.parent.radial_duplicator).duplicates) > 0  # pyright: ignore[reportAttributeAccessIssue]
         ):
             center_empty = ob.parent
-        elif len(cast(properties.RadialCollections, ob.radial_duplicator).duplicates) > 0:  # pyright: ignore[reportAttributeAccessIssue]
+        elif len(cast("properties.RadialCollections", ob.radial_duplicator).duplicates) > 0:  # pyright: ignore[reportAttributeAccessIssue]
             center_empty = ob
         else:
             return {'CANCELLED'}
 
-        props_collection = cast(properties.RadialCollections, center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+        props_collection = cast("properties.RadialCollections", center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
         props = props_collection.duplicates[0]
         radial_duplicates = radial_duplicates_object.RadialDuplicates.from_props(context, props)
         radial_duplicates.remove()

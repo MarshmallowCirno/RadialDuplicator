@@ -10,13 +10,15 @@ import mathutils
 import numpy as np
 
 from .... import addon_info
-from ... import properties
 from ...preferences import addon_preferences
 from ...radial_objects import radial_duplicates_object
 from ...utils import gpu_draw_utils, math_utils, modal_utils, scene_utils, text_utils, theme_utils, view3d_utils
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
+
+    from ... import properties
+
 
 shader_2d = gpu.shader.from_builtin('UNIFORM_COLOR')
 shader_3d = gpu.shader.from_builtin('UNIFORM_COLOR')
@@ -237,14 +239,14 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             self.build_new_radial_duplicates(context)
         else:
             ob = context.object
-            if len(cast(properties.RadialCollections, ob.radial_duplicator).duplicates) > 0:  # pyright: ignore[reportAttributeAccessIssue]
-                props = cast(properties.RadialCollections, ob.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
+            if len(cast("properties.RadialCollections", ob.radial_duplicator).duplicates) > 0:  # pyright: ignore[reportAttributeAccessIssue]
+                props = cast("properties.RadialCollections", ob.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
                 self.build_radial_duplicates_from_props(context, props)
             elif (
                 ob.parent is not None
-                and len(cast(properties.RadialCollections, ob.parent.radial_duplicator).duplicates) > 0  # pyright: ignore[reportAttributeAccessIssue]
+                and len(cast("properties.RadialCollections", ob.parent.radial_duplicator).duplicates) > 0  # pyright: ignore[reportAttributeAccessIssue]
             ):
-                props = cast(properties.RadialCollections, ob.parent.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
+                props = cast("properties.RadialCollections", ob.parent.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
                 self.build_radial_duplicates_from_props(context, props)
             else:
                 self.build_new_radial_duplicates(context)

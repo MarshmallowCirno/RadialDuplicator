@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from typing import TYPE_CHECKING, TypeGuard, cast
 
@@ -5,10 +7,10 @@ import bpy
 import mathutils
 import numpy as np
 
-from ... import properties
 from ..utils import object_utils
 
 if TYPE_CHECKING:
+    from ... import properties
     from . import radial_screw_object
 
 
@@ -49,7 +51,7 @@ def find_axis_empty(screw_mod: bpy.types.ScrewModifier) -> bpy.types.Object | No
 
 def find_props(ob: bpy.types.Object, name: str) -> properties.RadialScrewPropsGroup | None:
     """Find object radial screw property group by name."""
-    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
     props = props_collection.screws.get(name)
     return props
 
@@ -121,7 +123,7 @@ def new_node_group() -> bpy.types.NodeTree:
 
 def new_props(ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier, name: str) -> properties.RadialScrewPropsGroup:
     """Add a new radial screw property group and return it."""
-    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
     props = props_collection.screws.add()
     props["name"] = name
@@ -245,7 +247,7 @@ def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> mathut
 
 def remove_junk_props(ob: bpy.types.Object) -> None:
     """Remove radial screw properties with name that have no matching screw modifier."""
-    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
     for props in reversed(props_collection.screws):
         mod = ob.modifiers.get(props.name)

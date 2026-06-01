@@ -3,15 +3,17 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Sequence
-from typing import Literal, Self, cast
+from typing import TYPE_CHECKING, Literal, Self, cast
 
 import bpy
 import mathutils
 import numpy as np
 
-from .. import properties
 from ..radial_objects import radial_duplicates_builder
 from ..utils import math_utils, object_data_utils, object_utils
+
+if TYPE_CHECKING:
+    from .. import properties
 
 
 class RadialDuplicates:
@@ -120,7 +122,7 @@ class RadialDuplicatesProps:
         # So, don't store collection item and retrieve it by a name instead
 
         center_empty = self._radial_duplicates.center_empty.value
-        props_collection = cast(properties.RadialCollections, center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+        props_collection = cast("properties.RadialCollections", center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
         return props_collection.duplicates[0]
 
     def _get_spin_orientation_matrix(self, spin_orientation: str) -> mathutils.Matrix:
@@ -172,7 +174,7 @@ class RadialDuplicatesProps:
     def remove(self) -> None:
         """Remove property group if it exists."""
         ob = self._radial_duplicates.starting_object.value
-        props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+        props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
         props_collection.duplicates.clear()
 

@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, cast
 import bpy
 
 from ... import addon_info
-from .. import properties
 from ..utils import object_utils
 
 if TYPE_CHECKING:
+    from .. import properties
     from . import radial_duplicates_object
 
 
@@ -42,7 +42,7 @@ def new_center_empty(context: bpy.types.Context, starting_ob: bpy.types.Object) 
 
 def new_props(center_empty: bpy.types.Object, starting_ob: bpy.types.Object) -> properties.RadialDuplicatesPropsGroup:
     """Add a new radial array property group and return it."""
-    props_collection = cast(properties.RadialCollections, center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
     props = props_collection.duplicates.add()
     props["starting_object"] = starting_ob

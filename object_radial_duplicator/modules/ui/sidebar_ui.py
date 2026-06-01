@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import bpy
 
 from ... import addon_info
-from .. import properties
+
+if TYPE_CHECKING:
+    from .. import properties
 
 
 class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
@@ -68,7 +70,7 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
 
             for array_mod in array_mods:
                 radial_array_name = array_mod.name
-                props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+                props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
                 props = props_collection.arrays.get(radial_array_name)
                 box = col.box()
 
@@ -130,13 +132,13 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
         ob = context.object
 
         props = None
-        if ob.children and len(cast(properties.RadialCollections, ob.radial_duplicator).duplicates) > 0:  # pyright: ignore[reportAttributeAccessIssue]
-            props = cast(properties.RadialCollections, ob.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
+        if ob.children and len(cast("properties.RadialCollections", ob.radial_duplicator).duplicates) > 0:  # pyright: ignore[reportAttributeAccessIssue]
+            props = cast("properties.RadialCollections", ob.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
         elif (
             ob.parent is not None
-            and len(cast(properties.RadialCollections, ob.parent.radial_duplicator).duplicates) > 0  # pyright: ignore[reportAttributeAccessIssue]
+            and len(cast("properties.RadialCollections", ob.parent.radial_duplicator).duplicates) > 0  # pyright: ignore[reportAttributeAccessIssue]
         ):
-            props = cast(properties.RadialCollections, ob.parent.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
+            props = cast("properties.RadialCollections", ob.parent.radial_duplicator).duplicates[0]  # pyright: ignore[reportAttributeAccessIssue]
 
         if props is not None:
             box = layout.box()
@@ -196,7 +198,7 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
 
             for screw_mod in screw_mods:
                 radial_screw_name = screw_mod.name
-                props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+                props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
                 props = props_collection.screws.get(radial_screw_name)
                 box = col.box()
 

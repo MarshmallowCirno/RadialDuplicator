@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import bpy
 import rna_keymap_ui
 
-from .. import properties
+if TYPE_CHECKING:
+    from .. import properties
 
 
 def redraw_sidebar(context: bpy.types.Context) -> None:

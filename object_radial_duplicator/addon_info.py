@@ -16,4 +16,4 @@ def get_addon_package() -> str:
 
 def get_preferences() -> addon_preferences.RADDUPLICATOR_preferences:
     assert isinstance(__package__, str)
-    return cast(addon_preferences.RADDUPLICATOR_preferences, bpy.context.preferences.addons[__package__].preferences)
+    return cast("addon_preferences.RADDUPLICATOR_preferences", bpy.context.preferences.addons[__package__].preferences)

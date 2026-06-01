@@ -8,10 +8,10 @@ import mathutils
 import numpy as np
 
 from ... import addon_info
-from .. import properties
 from ..utils import object_utils
 
 if TYPE_CHECKING:
+    from .. import properties
     from . import radial_array_object
 
 
@@ -56,7 +56,7 @@ def find_offset_empty(array_mod: bpy.types.ArrayModifier) -> bpy.types.Object | 
 
 def find_props(ob: bpy.types.Object, name: str) -> properties.RadialArrayPropsGroup | None:
     """Find object radial array property group by name."""
-    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
     props = props_collection.arrays.get(name)
     return props
 
@@ -135,7 +135,7 @@ def new_node_group() -> bpy.types.NodeTree:
 
 def new_props(ob: bpy.types.Object, array_mod: bpy.types.ArrayModifier, name: str) -> properties.RadialArrayPropsGroup:
     """Add a new radial array property group and return it."""
-    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
     props = props_collection.arrays.add()
     props["name"] = name
@@ -295,7 +295,7 @@ def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> mathut
 
 def remove_junk_props(ob: bpy.types.Object) -> None:
     """Remove radial array properties with name that have no matching array modifier."""
-    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props_collection = cast("properties.RadialCollections", ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
     for props in reversed(props_collection.arrays):
         mod = ob.modifiers.get(props.name)
