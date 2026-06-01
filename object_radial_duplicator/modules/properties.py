@@ -15,7 +15,7 @@ for i in cast(bpy.types.EnumProperty, bpy.types.Event.bl_rna.properties["type"])
         modal_key_items.append((i.identifier, i.name, "", i.value))
 
 
-def update_array(self: RadialArrayPropsGroup, context: bpy.types.Context) -> None:
+def update_array(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
     radial_array = radial_arrays.get_by_name(self.name)
@@ -31,7 +31,7 @@ def update_array(self: RadialArrayPropsGroup, context: bpy.types.Context) -> Non
     )
 
 
-def update_array_show_viewport(self: RadialArrayPropsGroup, context: bpy.types.Context) -> None:
+def update_array_show_viewport(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
     radial_array = radial_arrays.get_by_name(self.name)
@@ -150,7 +150,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
         )
 
 
-def update_screw(self: RadialScrewPropsGroup, context: bpy.types.Context) -> None:
+def update_screw(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_screws = radial_screw_object.ObjectRadialScrews(context, ob)
     radial_screw = radial_screws.get_by_name(self.name)
@@ -167,7 +167,7 @@ def update_screw(self: RadialScrewPropsGroup, context: bpy.types.Context) -> Non
     )
 
 
-def update_screw_show_viewport(self: RadialScrewPropsGroup, context: bpy.types.Context) -> None:
+def update_screw_show_viewport(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_screws = radial_screw_object.ObjectRadialScrews(context, ob)
     radial_screw = radial_screws.get_by_name(self.name)
@@ -291,7 +291,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
         )
 
 
-def update_duplicates(self: RadialDuplicatesPropsGroup, context: bpy.types.Context) -> None:
+def update_duplicates(self: "RadialDuplicatesPropsGroup", context: bpy.types.Context) -> None:
     radial_duplicate = radial_duplicates_object.RadialDuplicates.from_props(context, self)
     radial_duplicate.modify(
         self.spin_orientation,
@@ -304,7 +304,7 @@ def update_duplicates(self: RadialDuplicatesPropsGroup, context: bpy.types.Conte
     )
 
 
-def update_duplicates_show_viewport(self: RadialDuplicatesPropsGroup, context: bpy.types.Context) -> None:
+def update_duplicates_show_viewport(self: "RadialDuplicatesPropsGroup", context: bpy.types.Context) -> None:
     radial_duplicate = radial_duplicates_object.RadialDuplicates.from_props(context, self)
     dupli_obs = radial_duplicate.duplicated_objects.value
 
@@ -442,42 +442,42 @@ def get_color_from_theme(color_name: str) -> Sequence[float]:
     }[color_name]
 
 
-def fill_colors_from_theme(self: OverlayColors, _) -> None:
+def fill_colors_from_theme(self: "OverlayColors", _) -> None:
     self.main = get_color_from_theme("main")
     self.key = get_color_from_theme("key")
     self.val = get_color_from_theme("val")
     self.bg = get_color_from_theme("bg")
 
 
-def get_main_color(self: OverlayColors) -> Sequence[float]:
+def get_main_color(self: "OverlayColors") -> Sequence[float]:
     return get_color_from_theme("main") if self.use_from_theme else self["main"]
 
 
-def get_key_color(self: OverlayColors) -> Sequence[float]:
+def get_key_color(self: "OverlayColors") -> Sequence[float]:
     return get_color_from_theme("key") if self.use_from_theme else self["key"]
 
 
-def get_val_color(self: OverlayColors) -> Sequence[float]:
+def get_val_color(self: "OverlayColors") -> Sequence[float]:
     return get_color_from_theme("val") if self.use_from_theme else self["val"]
 
 
-def get_bg_color(self: OverlayColors) -> Sequence[float]:
+def get_bg_color(self: "OverlayColors") -> Sequence[float]:
     return get_color_from_theme("bg") if self.use_from_theme else self["bg"]
 
 
-def set_main_color(self: OverlayColors, value: float) -> None:
+def set_main_color(self: "OverlayColors", value: float) -> None:
     self["main"] = value
 
 
-def set_key_color(self: OverlayColors, value: float) -> None:
+def set_key_color(self: "OverlayColors", value: float) -> None:
     self["key"] = value
 
 
-def set_val_color(self: OverlayColors, value: float) -> None:
+def set_val_color(self: "OverlayColors", value: float) -> None:
     self["val"] = value
 
 
-def set_bg_color(self: OverlayColors, value: float) -> None:
+def set_bg_color(self: "OverlayColors", value: float) -> None:
     self["bg"] = value
 
 

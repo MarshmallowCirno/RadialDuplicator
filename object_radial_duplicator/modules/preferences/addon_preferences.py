@@ -11,7 +11,7 @@ from ..ui import sidebar_ui
 from ..utils import layout_draw_utils
 
 
-def update_sidebar_category(self: RADDUPLICATOR_preferences, _):
+def update_sidebar_category(self: "RADDUPLICATOR_preferences", _context: bpy.types.Context) -> None:
     is_panel = hasattr(bpy.types, 'RADDUPLCIATOR_PT_sidebar')
     if is_panel:
         try:
@@ -22,14 +22,47 @@ def update_sidebar_category(self: RADDUPLICATOR_preferences, _):
     bpy.utils.register_class(sidebar_ui.RADDUPLCIATOR_PT_sidebar)
 
 
-def get_empties_collection(self: RADDUPLICATOR_preferences) -> str:
-    return self.get("empties_collection", "Radial Empties")
+if bpy.app.version >= (5, 0, 0):
 
+    def get_empties_collection_transform(
+        _self: bpy.types.bpy_struct,
+        curr_value: str,
+        _is_set: bool,
+    ) -> str:
+        return curr_value
 
-def set_empties_collection(self: RADDUPLICATOR_preferences, value: str):
-    if value == "":
-        value = "Radial Empties"
-    self["empties_collection"] = value
+    def set_empties_collection_transform(
+        _self: bpy.types.bpy_struct,
+        new_value: str,
+        _curr_value: str,
+        _is_set: bool,
+    ) -> str:
+        return "Radial Empties" if new_value == "" else new_value
+
+    empties_collection_prop = bpy.props.StringProperty(
+        name="Empties Collection",
+        description="Name of the scene collection for newly created empties",
+        default="Radial Empties",
+        get_transform=get_empties_collection_transform,
+        set_transform=set_empties_collection_transform,
+    )
+else:
+
+    def get_empties_collection(self: bpy.types.bpy_struct) -> str:
+        return self.get("empties_collection", "Radial Empties")
+
+    def set_empties_collection(self: bpy.types.bpy_struct, value: str) -> None:
+        if value == "":
+            value = "Radial Empties"
+        self["empties_collection"] = value
+
+    empties_collection_prop = bpy.props.StringProperty(
+        name="Empties Collection",
+        description="Name of the scene collection for newly created empties",
+        default="Radial Empties",
+        get=get_empties_collection,
+        set=set_empties_collection,
+    )
 
 
 class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
@@ -93,13 +126,7 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
             description="Move newly created empties to scene collection to hide them",
             default=False,
         )
-        empties_collection: bpy.props.StringProperty(
-            name="Empties Collection",
-            description="Name of the scene collection for newly created empties",
-            default="Radial Empties",
-            get=get_empties_collection,
-            set=set_empties_collection,
-        )
+        empties_collection: empties_collection_prop
 
     def draw(self, _context: bpy.types.Context) -> None:
         layout = self.layout
