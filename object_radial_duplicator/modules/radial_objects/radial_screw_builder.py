@@ -6,7 +6,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 from ... import properties
-from ..utils.object import copy_collections, copy_local_view_state, get_modifier_index
+from ..utils.object_utils import copy_collections, copy_local_view_state, get_modifier_index
 
 if TYPE_CHECKING:
     from . import radial_screw_object

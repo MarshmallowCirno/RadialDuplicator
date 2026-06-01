@@ -8,14 +8,14 @@ from mathutils import Euler, Matrix, Vector
 
 from .. import properties
 from ..radial_objects.radial_screw_builder import RadialScrewDirector, new_nodes_mod
-from ..utils.math import get_axis_vec
-from ..utils.object import (
+from ..utils.math_utils import get_axis_vec
+from ..utils.object_data_utils import get_mesh_center_co_world, get_mesh_selection_co_world
+from ..utils.object_utils import (
     clear_children_parent_and_keep_mx,
     get_normal_matrix,
     set_children_parent_and_keep_mx,
     set_origin,
 )
-from ..utils.object_data import get_mesh_center_co_world, get_mesh_selection_co_world
 
 
 class ObjectRadialScrews:

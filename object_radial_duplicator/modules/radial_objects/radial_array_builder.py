@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 
 from ...addon_info import get_preferences
 from .. import properties
-from ..utils.object import copy_collections, copy_local_view_state, get_modifier_index, move_to_collection
+from ..utils.object_utils import copy_collections, copy_local_view_state, get_modifier_index, move_to_collection
 
 if TYPE_CHECKING:
     from . import radial_array_object

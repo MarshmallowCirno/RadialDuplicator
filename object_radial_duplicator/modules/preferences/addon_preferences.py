@@ -8,8 +8,8 @@ from ... import addon_info
 from ..keymap.modal_keymap import register_modal_keymap
 from ..keymap.ot_keymap import addon_ot_km_kmis
 from ..properties import AddonKeyMap, OverlayColors
-from ..ui.sidebar import RADDUPLCIATOR_PT_sidebar
-from ..utils import layout_draw
+from ..ui.sidebar_ui import RADDUPLCIATOR_PT_sidebar
+from ..utils import layout_draw_utils
 
 
 def update_sidebar_category(self: RADDUPLICATOR_preferences, _):

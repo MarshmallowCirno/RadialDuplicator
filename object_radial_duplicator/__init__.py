@@ -97,34 +97,9 @@ if "bpy" in locals():
             if module in locals():
                 importlib.reload(locals()[module])
 else:
-    from .modules.utils import (
-        layout_draw,
-        math,
-        modal,
-        multiuser_data_changer,
-        object,
-        object_data,
-        gpu_draw,
-        scene,
-        text,
-        theme,
-        view3d
-    )
     from .modules import properties
-    from .modules.keymap import modal_keymap
-    from .modules.keymap import ot_keymap
-    from .modules.preferences import preferences
     from .modules.base_classes import apply_base
-    from .modules.ui import apply_dialog
-
-    from .modules.radial_objects import (
-        radial_array_builder,
-        radial_array_object,
-        radial_duplicates_builder,
-        radial_duplicates_object,
-        radial_screw_builder,
-        radial_screw_object,
-    )
+    from .modules.keymap import modal_keymap, ot_keymap
     from .modules.operators.radial_array import (
         radial_array_add,
         radial_array_apply,
@@ -147,7 +122,29 @@ else:
         radial_screw_remove,
         radial_screw_set_pivot_point,
     )
-    from .modules.ui import sidebar
+    from .modules.preferences import addon_preferences
+    from .modules.radial_objects import (
+        radial_array_builder,
+        radial_array_object,
+        radial_duplicates_builder,
+        radial_duplicates_object,
+        radial_screw_builder,
+        radial_screw_object,
+    )
+    from .modules.ui import apply_dialog_ui, sidebar_ui
+    from .modules.utils import (
+        gpu_draw_utils,
+        layout_draw_utils,
+        math_utils,
+        modal_utils,
+        multiuser_data_changer,
+        object_data_utils,
+        object_utils,
+        scene_utils,
+        text_utils,
+        theme_utils,
+        view3d_utils,
+    )
 
 
 import bpy

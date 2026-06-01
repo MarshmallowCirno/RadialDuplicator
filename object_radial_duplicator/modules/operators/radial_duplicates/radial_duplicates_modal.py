@@ -11,15 +11,15 @@ from mathutils import Matrix, Vector
 
 from ....addon_info import get_preferences
 from ... import properties
-from ...preferences.preferences import RADDUPLICATOR_preferences
+from ...preferences.addon_preferences import RADDUPLICATOR_preferences
 from ...radial_objects import radial_duplicates_object
-from ...utils.gpu_draw import draw_bg
-from ...utils.math import build_circle, flatten_vec, get_axis_vec
-from ...utils.modal import event_type_is_digit, event_type_to_digit, get_property_default, is_event_match_kmi
-from ...utils.scene import get_unit
-from ...utils.text import draw_text_block, get_text_block_dimensions
-from ...utils.theme import get_axis_color
-from ...utils.view3d import get_non_overlap_width, hide_sidebar, restore_sidebar
+from ...utils.gpu_draw_utils import draw_bg
+from ...utils.math_utils import build_circle, flatten_vec, get_axis_vec
+from ...utils.modal_utils import event_type_is_digit, event_type_to_digit, get_property_default, is_event_match_kmi
+from ...utils.scene_utils import get_unit
+from ...utils.text_utils import draw_text_block, get_text_block_dimensions
+from ...utils.theme_utils import get_axis_color
+from ...utils.view3d_utils import get_non_overlap_width, hide_sidebar, restore_sidebar
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems

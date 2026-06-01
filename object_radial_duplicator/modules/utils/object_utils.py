@@ -5,7 +5,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-from ..utils.object_data import is_data_selected
+from ..utils.object_data_utils import is_data_selected
 
 
 def get_normal_matrix(context: bpy.types.Context, ob: bpy.types.Object) -> Matrix:

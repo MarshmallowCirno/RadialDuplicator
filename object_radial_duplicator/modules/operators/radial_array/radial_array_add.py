@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal, cast
 import bpy
 
 from ...radial_objects.radial_array_object import ObjectRadialArrays
-from ...utils.object_data import is_data_selected
+from ...utils.object_data_utils import is_data_selected
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
