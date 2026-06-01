@@ -1,63 +1,56 @@
-from typing import Union, Optional
+from __future__ import annotations
+
+from typing import Literal, Self, cast
 
 import bpy
 import numpy as np
-from bpy.types import ScrewModifier
-from bpy.types import Context
-from bpy.types import NodesModifier
-from bpy.types import Object
-from mathutils import Euler
-from mathutils import Matrix
-from mathutils import Vector
+from mathutils import Euler, Matrix, Vector
 
 from .. import properties
+from ..radial_objects.radial_screw_builder import RadialScrewDirector, new_nodes_mod
 from ..utils.math import get_axis_vec
-from ..utils.object import clear_children_parent_and_keep_mx
-from ..utils.object import get_normal_matrix
-from ..utils.object import set_children_parent_and_keep_mx
-from ..utils.object import set_origin
-from ..utils.object_data import get_mesh_center_co_world
-from ..utils.object_data import get_mesh_selection_co_world
-from ..radial_objects.radial_screw_builder import new_nodes_mod
-from ..radial_objects.radial_screw_builder import RadialScrewDirector
+from ..utils.object import (
+    clear_children_parent_and_keep_mx,
+    get_normal_matrix,
+    set_children_parent_and_keep_mx,
+    set_origin,
+)
+from ..utils.object_data import get_mesh_center_co_world, get_mesh_selection_co_world
 
 
 class ObjectRadialScrews:
     """Class for getting or controlling RadialScrews on object"""
-    def __init__(self, context: Context, ob: Object):
-        self.context: Context = context
-        self.object: Object = ob
-        self.value: list["RadialScrew"] = self._get_radial_screws()
 
-    def _get_radial_screws(self) -> list["RadialScrew"]:
+    def __init__(self, context: bpy.types.Context, ob: bpy.types.Object) -> None:
+        self.context: bpy.types.Context = context
+        self.object: bpy.types.Object = ob
+        self.value: list[RadialScrew] = self._get_radial_screws()
+
+    def _get_radial_screws(self) -> list[RadialScrew]:
         ob_mods = self.object.modifiers
         radial_screw_modifier_names = [mod.name for mod in ob_mods if mod.type == 'SCREW' and "Radial" in mod.name]
-        radial_screws = [RadialScrew.from_modifier(self, name) for name in radial_screw_modifier_names]
+        radial_screws = [
+            cast(RadialScrew, RadialScrew.from_modifier(self, name)) for name in radial_screw_modifier_names
+        ]
         return radial_screws
 
-    def __getitem__(self, key: Union[str, int]) -> Optional["RadialScrew"]:
-        """Get radial screw from class dict or create it from modifier and add to class dict."""
-        if type(key) is str:
-            names = [radial_screw.name for radial_screw in self.value]
-            if key in names:
-                i = names.index(key)
-                radial_screw = self.value[i]
-            else:
-                radial_screw = None
-
-        elif type(key) is int:
-            # https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available # noqa
-            radial_screw = (
-                self.value[key]
-                if -len(self.value) <= key < len(self.value)
-                else None
-            )
+    def get_by_name(self, name: str) -> RadialScrew | None:
+        """Get radial array from class dict or create it from modifier and add to class dict."""
+        names = [radial_screw.name for radial_screw in self.value]
+        if name in names:
+            i = names.index(name)
+            radial_screw = self.value[i]
         else:
-            raise TypeError("key is invalid")
-
+            radial_screw = None
         return radial_screw
 
-    def new(self) -> "RadialScrew":
+    def get_by_index(self, index: int) -> RadialScrew | None:
+        """Get radial screw from class dict or create it from modifier and add to class dict."""
+        # https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available # noqa
+        radial_screw = self.value[index] if -len(self.value) <= index < len(self.value) else None
+        return radial_screw
+
+    def new(self) -> RadialScrew:
         """Build new radial screw and store it in class dict."""
         radial_screw = RadialScrew.new(self)
 
@@ -72,25 +65,25 @@ class ObjectRadialScrews:
 
 class RadialScrew:
     @classmethod
-    def from_modifier(cls, object_radial_screws: ObjectRadialScrews, screw_modifier_name: str = ""):
+    def from_modifier(cls, object_radial_screws: ObjectRadialScrews, screw_modifier_name: str = "") -> Self | None:
         return RadialScrewDirector(cls, object_radial_screws).build_from_modifier(screw_modifier_name)
 
     @classmethod
-    def new(cls, object_radial_screws: ObjectRadialScrews):
+    def new(cls, object_radial_screws: ObjectRadialScrews) -> Self:
         return RadialScrewDirector(cls, object_radial_screws).build_new()
 
     def __init__(
         self,
-        siblings: "ObjectRadialScrews",
+        siblings: ObjectRadialScrews,
         name: str,
-        screw_modifier: ScrewModifier,
-        nodes_modifier: Optional[NodesModifier],
-        axis_empty: Optional[Object],
-    ):
-        self.siblings: "ObjectRadialScrews" = siblings
+        screw_modifier: bpy.types.ScrewModifier,
+        nodes_modifier: bpy.types.NodesModifier | None,  # nodes_modifier is None when there is no offset or rotation
+        axis_empty: bpy.types.Object,
+    ) -> None:
+        self.siblings: ObjectRadialScrews = siblings
         self.name: str = name
-        self.context: Context = siblings.context
-        self.object: Object = siblings.object
+        self.context: bpy.types.Context = siblings.context
+        self.object: bpy.types.Object = siblings.object
         self.properties = RadialScrewProps(self)
         self.screw_modifier = RadialScrewScrewMod(self, screw_modifier)
         self.nodes_modifier = RadialScrewNodesMod(self, nodes_modifier)
@@ -98,7 +91,7 @@ class RadialScrew:
         self.pivot_point = RadialScrewPivotPoint(self)
 
     @property
-    def spin_vec_object(self):
+    def spin_vec_object(self) -> Vector:
         ob = self.object
         props = self.properties
 
@@ -116,15 +109,17 @@ class RadialScrew:
 
     def modify(
         self,
-        spin_orientation: str,
-        spin_axis: str,
+        spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL'],
+        spin_axis: Literal['X', 'Y', 'Z'],
         steps: int,
         radius_offset: float,
         start_angle: float,
         end_angle: float,
         screw_offset: float,
         iterations: int,
-        pivot_point: Optional[Union[str, Vector]] = None,
+        pivot_point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY']
+        | Vector
+        | None = None,
     ) -> None:
         """Spin radial screw and change pivot point.
 
@@ -136,7 +131,7 @@ class RadialScrew:
         :param start_angle: Rotation placement for the first duplicated geometry in radians in [-inf, inf].
         :param end_angle: Rotation placement for the last duplicated geometry in radians in [-inf, inf].
         :param iterations: Number of times to apply the screw operation in [1, inf].
-        :param pivot_point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'Vector', None].
+        :param pivot_point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY', 'Vector', None].
         """
         self.properties.update(
             spin_orientation, spin_axis, steps, radius_offset, start_angle, end_angle, screw_offset, iterations
@@ -153,10 +148,13 @@ class RadialScrew:
         self.screw_modifier.refresh()
         self.axis_empty.refresh()
 
-    def set_pivot_point(self, point: Union[str, Vector]) -> None:
+    def set_pivot_point(
+        self,
+        point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector,
+    ) -> None:
         """Set pivot point and refresh radial screw.
 
-        :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'Vector'].
+        :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY', 'Vector'].
         """
         RadialScrewPivotPoint(self).set(point)
 
@@ -181,21 +179,23 @@ class RadialScrew:
 
 
 class RadialScrewProps:
-    def __init__(self, radial_screw: RadialScrew):
+    def __init__(self, radial_screw: RadialScrew) -> None:
         self._radial_screw = radial_screw
 
     @property
-    def value(self) -> "properties.RadialScrewPropsGroup":
+    def value(self) -> properties.RadialScrewPropsGroup:
         # Re-allocation can lead to crashes (e.g. if you add a lot of items to some Collection, this can lead
         # to re-allocating the underlying container’s memory, invalidating all previous references to existing items).
         # So, don't store collection item and retrieve it by a name instead.
-
         ob = self._radial_screw.object
         name = self._radial_screw.name
+        props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
-        return ob.radial_duplicator.screws.get(name)
+        props = props_collection.screws.get(name)
+        assert props is not None
+        return props
 
-    def _get_spin_orientation_matrix(self, spin_orientation: str) -> Matrix:
+    def _get_spin_orientation_matrix(self, spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL']) -> Matrix:
         """Get spin orientation matrix in world space.
 
         :param spin_orientation: Spin orientation in ['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL'].
@@ -210,27 +210,30 @@ class RadialScrewProps:
             'NORMAL': lambda: get_normal_matrix(context, ob),
         }[spin_orientation]()
 
-    def update(self,
-               spin_orientation: str,
-               spin_axis: str,
-               steps: int,
-               radius_offset: float,
-               start_angle: float,
-               end_angle: float,
-               screw_offset: float,
-               iterations: int) -> None:
+    def update(
+        self,
+        spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL'],
+        spin_axis: Literal['X', 'Y', 'Z'],
+        steps: int,
+        radius_offset: float,
+        start_angle: float,
+        end_angle: float,
+        screw_offset: float,
+        iterations: int,
+    ) -> None:
         """Update property group."""
         ob = self._radial_screw.object
 
-        spin_orientation_enums = self.value.bl_rna.properties["spin_orientation"].enum_items
-        self.value["spin_orientation"] = spin_orientation_enums.find(spin_orientation)
+        spin_orientation_enum = cast(bpy.types.EnumProperty, self.value.bl_rna.properties["spin_orientation"])
+        spin_orientation_enum_items = spin_orientation_enum.enum_items
+        self.value["spin_orientation"] = spin_orientation_enum_items.find(spin_orientation)
         spin_orientation_matrix = self._get_spin_orientation_matrix(spin_orientation)
         spin_orientation_matrix_object = ob.matrix_world.inverted() @ spin_orientation_matrix
 
-        # noinspection PyTypeChecker
         self.value["spin_orientation_matrix_object"] = np.array(spin_orientation_matrix_object).T.ravel()
-        spin_axis_enums = self.value.bl_rna.properties["spin_axis"].enum_items
-        self.value["spin_axis"] = spin_axis_enums.find(spin_axis)
+        spin_axis_enum = cast(bpy.types.EnumProperty, self.value.bl_rna.properties["spin_axis"])
+        spin_axis_enum_items = spin_axis_enum.enum_items
+        self.value["spin_axis"] = spin_axis_enum_items.find(spin_axis)
         self.value["steps"] = steps
         self.value["radius_offset"] = radius_offset
         self.value["start_angle"] = start_angle
@@ -239,17 +242,17 @@ class RadialScrewProps:
         self.value["iterations"] = iterations
 
     def remove(self) -> None:
-        """Remove property group if it exists."""
+        """Remove property group."""
         ob = self._radial_screw.object
         name = self._radial_screw.name
+        props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
 
-        props_id = ob.radial_duplicator.screws.find(name)
-        if props_id is not None:
-            ob.radial_duplicator.screws.remove(props_id)
+        props_id = props_collection.screws.find(name)
+        props_collection.screws.remove(props_id)
 
 
 class RadialScrewScrewMod:
-    def __init__(self, radial_screw: RadialScrew, value: ScrewModifier):
+    def __init__(self, radial_screw: RadialScrew, value: bpy.types.ScrewModifier) -> None:
         self._radial_screw = radial_screw
         self.value = value
 
@@ -265,7 +268,7 @@ class RadialScrewScrewMod:
         self.value.object = axis_empty
 
     def apply(self) -> str:
-        """Apply screw modifier if it exists and return success message confirmation."""
+        """Apply screw modifier and return success message confirmation."""
         ob = self._radial_screw.object
         context = self._radial_screw.context
 
@@ -277,19 +280,17 @@ class RadialScrewScrewMod:
 
         with context.temp_override(object=ob):
             bpy.ops.object.modifier_apply(modifier=self.value.name)
-        self.value = None
         return message
 
     def remove(self) -> None:
-        """Remove screw modifier if it exists."""
+        """Remove screw modifier."""
         ob = self._radial_screw.object
 
         ob.modifiers.remove(self.value)
-        self.value = None
 
 
 class RadialScrewNodesMod:
-    def __init__(self, radial_screw: RadialScrew, value: Optional[NodesModifier]):
+    def __init__(self, radial_screw: RadialScrew, value: bpy.types.NodesModifier | None) -> None:
         self._radial_screw = radial_screw
         self.value = value
 
@@ -324,11 +325,10 @@ class RadialScrewNodesMod:
         props = self._radial_screw.properties.value
         spin_vec_object = self._radial_screw.spin_vec_object
 
-        # noinspection PyArgumentList
         return (
             Euler((0, 0, 0))
             if props.start_angle == 0
-            else Matrix.Rotation(props.start_angle, 4, spin_vec_object).to_euler()
+            else Matrix.Rotation(props.start_angle, 4, spin_vec_object[:]).to_euler()
         )
 
     def refresh(self) -> None:
@@ -338,24 +338,31 @@ class RadialScrewNodesMod:
         axis_empty = self._radial_screw.axis_empty.value
 
         if start_rotation[:] != (0, 0, 0) or displace_offset_vec[:] != (0, 0, 0):
-
             if self.value is None:
                 self.add()
+            assert self.value is not None
 
             node_group = self.value.node_group
+            assert node_group is not None
             node = node_group.nodes["StartRotation"]
-            node.inputs["Rotation"].default_value = start_rotation[:]
+            cast(bpy.types.NodeSocketRotation, node.inputs["Rotation"]).default_value = start_rotation[:]
             node = node_group.nodes["RadiusOffset"]
-            node.inputs["Translation"].default_value = displace_offset_vec[:]
+            cast(bpy.types.NodeSocketVectorTranslation, node.inputs["Translation"]).default_value = displace_offset_vec[
+                :
+            ]
 
             axis_empty_mx = axis_empty.matrix_world
             axis_empty_mx_ob = ob.matrix_world.inverted() @ axis_empty_mx
 
             node = node_group.nodes["ObjectPivotToRadialScrewCenter"]
-            node.inputs["Translation"].default_value = axis_empty_mx_ob.inverted().to_translation()
+            cast(
+                bpy.types.NodeSocketVectorTranslation, node.inputs["Translation"]
+            ).default_value = axis_empty_mx_ob.inverted().to_translation()
 
             node = node_group.nodes["RestoreObjectPivot"]
-            node.inputs["Translation"].default_value = axis_empty_mx_ob.to_translation()
+            cast(
+                bpy.types.NodeSocketVectorTranslation, node.inputs["Translation"]
+            ).default_value = axis_empty_mx_ob.to_translation()
 
         else:
             self.remove()
@@ -392,7 +399,7 @@ class RadialScrewNodesMod:
 
 
 class RadialScrewAxisEmpty:
-    def __init__(self, radial_screw: RadialScrew, value: Optional[Object]):
+    def __init__(self, radial_screw: RadialScrew, value: bpy.types.Object):
         self._radial_screw = radial_screw
         self.value = value
 
@@ -403,7 +410,7 @@ class RadialScrewAxisEmpty:
         pivot_point_co_world = self._radial_screw.pivot_point.co_world
         spin_orientation_matrix_world = ob.matrix_world @ props.spin_orientation_matrix_object
 
-        # transform
+        # Transform
         children = self.value.children
         clear_children_parent_and_keep_mx(self.value)
 
@@ -413,15 +420,13 @@ class RadialScrewAxisEmpty:
         set_children_parent_and_keep_mx(children, self.value)
 
     def remove(self) -> None:
-        """Remove offset empty if it exists."""
-        if self.value is not None:
-            clear_children_parent_and_keep_mx(self.value)
-            bpy.data.objects.remove(self.value, do_unlink=True)
-            self.value = None
+        """Remove offset empty."""
+        clear_children_parent_and_keep_mx(self.value)
+        bpy.data.objects.remove(self.value, do_unlink=True)
 
 
 class RadialScrewPivotPoint:
-    def __init__(self, radial_screw: RadialScrew):
+    def __init__(self, radial_screw: RadialScrew) -> None:
         self._radial_screw = radial_screw
 
     @property
@@ -431,10 +436,12 @@ class RadialScrewPivotPoint:
 
         return axis_empty.matrix_world.to_translation()
 
-    def _get_point_co_world(self, point: Union[str, Vector]) -> Vector:
+    def _get_point_co_world(
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector
+    ) -> Vector:
         """Get point coordinates.
 
-        :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'Vector'].
+        :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY', 'Vector'].
         """
         context = self._radial_screw.context
         ob = self._radial_screw.object
@@ -453,10 +460,10 @@ class RadialScrewPivotPoint:
         else:
             return point
 
-    def set(self, point: Union[str, Vector]) -> None:
+    def set(self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector) -> None:
         """Change pivot point location.
 
-        :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'Vector'].
+        :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY', 'Vector'].
         """
         context = self._radial_screw.context
         ob = self._radial_screw.object
@@ -490,6 +497,5 @@ class RadialScrewPivotPoint:
     def _set_child_radial_screw_pivot_point(self, point_co: Vector) -> None:
         """Set center empty location and refresh radial screw."""
         axis_empty = self._radial_screw.axis_empty.value
-
         axis_empty.matrix_world.translation = point_co
         self._radial_screw.refresh()

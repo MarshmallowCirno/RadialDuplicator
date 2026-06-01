@@ -1,18 +1,18 @@
+from collections.abc import Sequence
 from typing import Literal
 
-import bpy
 import bmesh
-from bpy.types import Context
-from bpy.types import Object
-from mathutils import Matrix
-from mathutils import Vector
+import bpy
+from mathutils import Matrix, Vector
 
-from ..utils.object_data import data_is_selected
+from ..utils.object_data import is_data_selected
 
 
-def get_normal_matrix(context: Context, ob: Object) -> Matrix:
+def get_normal_matrix(context: bpy.types.Context, ob: bpy.types.Object) -> Matrix:
     """Get normal matrix of selection."""
-    if ob.mode == 'EDIT' and not data_is_selected(ob.data):
+    assert isinstance(ob.data, (bpy.types.Mesh, bpy.types.Curve))
+
+    if ob.mode == 'EDIT' and not is_data_selected(ob.data):
         return ob.matrix_world.copy()
     else:
         active_slot = context.scene.transform_orientation_slots[0]
@@ -23,6 +23,7 @@ def get_normal_matrix(context: Context, ob: Object) -> Matrix:
         bak_slot_type = active_slot.type
         bpy.ops.transform.create_orientation(name='RADIAL_DUPLICATOR', use=True, overwrite=True)
         custom_orientation = active_slot.custom_orientation
+        assert custom_orientation is not None
         custom_orientation_mx = custom_orientation.matrix.copy().to_4x4()
         bpy.ops.transform.delete_orientation()
         if bak_slot_name != 'RADIAL_DUPLICATOR':
@@ -30,14 +31,14 @@ def get_normal_matrix(context: Context, ob: Object) -> Matrix:
         return custom_orientation_mx
 
 
-def copy_collections(master_ob: Object, ob: Object) -> None:
+def copy_collections(master_ob: bpy.types.Object, ob: bpy.types.Object) -> None:
     """Copy collections from one object to another."""
     for collection in master_ob.users_collection:
         if collection not in ob.users_collection:
             collection.objects.link(ob)
 
 
-def move_to_collection(collection_name: str, ob: Object) -> None:
+def move_to_collection(collection_name: str, ob: bpy.types.Object) -> None:
     """Move object to collection."""
     collection = bpy.data.collections.get(collection_name)
     if collection is None:
@@ -48,7 +49,7 @@ def move_to_collection(collection_name: str, ob: Object) -> None:
     collection.objects.link(ob)
 
 
-def copy_local_view_state(context: Context, ob: Object) -> None:
+def copy_local_view_state(context: bpy.types.Context, ob: bpy.types.Object) -> None:
     """Copy local view state from context to object."""
     space = context.space_data
     if space.type == 'VIEW_3D':
@@ -56,11 +57,14 @@ def copy_local_view_state(context: Context, ob: Object) -> None:
             ob.local_view_set(space, True)
 
 
-def set_origin(context: Context, ob: Object, co_world: Vector) -> None:
+def set_origin(context: bpy.types.Context, ob: bpy.types.Object, co_world: Vector) -> None:
     """Set object origin location."""
+
     if ob.mode == 'EDIT' and ob.type == 'MESH':
+        assert isinstance(ob.data, bpy.types.Mesh)
+
         co_local = ob.matrix_world.inverted() @ co_world
-        transform_mx = Matrix.Translation(-co_local)
+        transform_mx = Matrix.Translation((-co_local)[:])
 
         bm = bmesh.from_edit_mesh(ob.data)
         bm.transform(transform_mx)
@@ -74,8 +78,10 @@ def set_origin(context: Context, ob: Object, co_world: Vector) -> None:
         #     child.matrix_parent_inverse = child.matrix_parent_inverse @ transform_mx
 
     elif ob.mode == 'OBJECT' and ob.type in {'CURVE', 'MESH'}:
+        assert isinstance(ob.data, (bpy.types.Mesh, bpy.types.Curve))
+
         co_local = ob.matrix_world.inverted() @ co_world
-        transform_mx = Matrix.Translation(-co_local)
+        transform_mx = Matrix.Translation((-co_local)[:])
 
         ob.data.transform(transform_mx)
 
@@ -108,27 +114,24 @@ def get_modifier_index(current_index: int, reference_index: int, position: Liter
                 new_index = reference_index
             else:
                 new_index = reference_index + 1
-        case _:
-            raise ValueError("Position is invalid")
     return new_index
 
 
-def clear_parent_and_keep_mx(ob: Object) -> None:
+def clear_parent_and_keep_mx(ob: bpy.types.Object) -> None:
     """Clear object parent and keep it transforms."""
     ob_mx = ob.matrix_world.copy()
     ob.parent = None
     ob.matrix_world = ob_mx
 
 
-def clear_children_parent_and_keep_mx(ob: Object) -> None:
+def clear_children_parent_and_keep_mx(ob: bpy.types.Object) -> None:
     """Clear object children parent and keep their transforms."""
     children = ob.children
-    if children is not None:
-        for child in children:
-            clear_parent_and_keep_mx(child)
+    for child in children:
+        clear_parent_and_keep_mx(child)
 
 
-def set_parent_and_keep_mx(ob: Object, parent: Object) -> None:
+def set_parent_and_keep_mx(ob: bpy.types.Object, parent: bpy.types.Object) -> None:
     """Set object parent and keep it transforms."""
     if ob.parent is not None:
         clear_parent_and_keep_mx(ob)
@@ -136,8 +139,7 @@ def set_parent_and_keep_mx(ob: Object, parent: Object) -> None:
     ob.matrix_parent_inverse = parent.matrix_world.inverted()
 
 
-def set_children_parent_and_keep_mx(children: list[Object], parent: Object) -> None:
+def set_children_parent_and_keep_mx(children: Sequence[bpy.types.Object], parent: bpy.types.Object) -> None:
     """Set object children parent and keep their transforms."""
-    if children is not None:
-        for child in children:
-            set_parent_and_keep_mx(child, parent)
+    for child in children:
+        set_parent_and_keep_mx(child, parent)

@@ -1,8 +1,18 @@
-from gpu_extras.batch import batch_for_shader
+from collections.abc import Sequence
+
 import gpu
+import gpu_extras
 
 
-def draw_bg(shader, content_x_right, content_y_bottom, content_x_left, content_y_top, padding, color):
+def draw_bg(
+    shader: gpu.types.GPUShader,
+    content_x_right: int,
+    content_y_bottom: int,
+    content_x_left: int,
+    content_y_top: int,
+    padding: int,
+    color: Sequence[float],
+):
     bg_x_right = content_x_right + padding
     bg_x_left = content_x_left - padding
     bg_y_bottom = content_y_bottom - padding
@@ -43,7 +53,7 @@ def draw_bg(shader, content_x_right, content_y_bottom, content_x_left, content_y
         (0, 6, 7),
     ]
 
-    batch = batch_for_shader(shader, 'TRIS', {"pos": vertices}, indices=indices)
+    batch = gpu_extras.batch.batch_for_shader(shader, 'TRIS', {"pos": vertices}, indices=indices)
     shader.bind()
     shader.uniform_float("color", color)
     gpu.state.blend_set('ALPHA')

@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import bpy
+
+if TYPE_CHECKING:
+    from bpy.stub_internal.rna_enums import OperatorReturnItems
 
 
 class RADDUPLICATOR_OT_apply_multi_user_data_dialog(bpy.types.Operator):
@@ -6,20 +13,27 @@ class RADDUPLICATOR_OT_apply_multi_user_data_dialog(bpy.types.Operator):
     bl_label = "Apply Multiuser Data Dialog"
     bl_options = {'INTERNAL'}
 
-    name: bpy.props.StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
-    op_name: bpy.props.StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
+    if TYPE_CHECKING:
+        name: str
+        op_name: str
+    else:
+        name: bpy.props.StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
+        op_name: bpy.props.StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
 
-    def execute(self, context):
+    def execute(self, context: bpy.types.Context) -> set[OperatorReturnItems]:
         return {'FINISHED'}
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[OperatorReturnItems]:
         return context.window_manager.invoke_popup(self, width=360)
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context):
         layout = self.layout
+        assert layout is not None
+        ob = context.object
+        assert ob is not None
 
-        # Don't draw after applying an modifier
-        if context.object.modifiers.get(self.name) is None:
+        # Don't draw after applying a modifier
+        if ob.modifiers.get(self.name) is None:
             return
 
         layout.operator_context = 'EXEC_DEFAULT'
@@ -36,18 +50,18 @@ class RADDUPLICATOR_OT_apply_multi_user_data_dialog(bpy.types.Operator):
         op.name = self.name
 
 
-classes = (
-    RADDUPLICATOR_OT_apply_multi_user_data_dialog,
-)
+classes = (RADDUPLICATOR_OT_apply_multi_user_data_dialog,)
 
 
 def register():
     from bpy.utils import register_class
+
     for cls in classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
+
     for cls in classes:
         unregister_class(cls)

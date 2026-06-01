@@ -1,6 +1,6 @@
 import bpy
 
-addon_ot_km_kmis = []
+addon_ot_km_kmis: list[tuple[bpy.types.KeyMap, bpy.types.KeyMapItem]] = []
 
 
 def register_ot_keymap():

@@ -1,6 +1,7 @@
+from typing import Literal
+
 import numpy as np
-from mathutils import Matrix
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 
 def get_axis_vec(axis: str, matrix: Matrix) -> Vector:
@@ -31,7 +32,7 @@ def flatten_vec(vec: Vector, axis: str) -> Vector:
     return vec
 
 
-def build_circle(radius: float, sides: int) -> np.array:
+def build_circle(radius: float, sides: int) -> np.ndarray[tuple[int, Literal[3]], np.dtype[np.float32]]:
     """Build a circle and return its vertex coordinates."""
     # https://stackoverflow.com/questions/17258546/opengl-creating-a-circle-change-radius
     counts = np.arange(1, sides + 1, dtype="f")

@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import bpy
 import rna_keymap_ui
-from bpy.types import KeyMapItem, UILayout, CollectionProperty
+
+from .. import properties
 
 
-def redraw_sidebar(context) -> None:
+def redraw_sidebar(context: bpy.types.Context) -> None:
     """Redraw all sidebars in screen."""
     for area in context.screen.areas:
         for region in area.regions:
@@ -11,17 +14,16 @@ def redraw_sidebar(context) -> None:
                 area.tag_redraw()
 
 
-def draw_keymap_items(keymap_items: list[KeyMapItem],
-                      keymap_name: str,
-                      allow_removing: bool,
-                      column: UILayout) -> None:
+def draw_keymap_items(
+    keymap_items: list[bpy.types.KeyMapItem], keymap_name: str, allow_removing: bool, column: bpy.types.UILayout
+) -> None:
     """Draw addon keymap items.
 
-        Args:
-            keymap_items: list[KeyMapItem] -- Addon keymap items
-            keymap_name: KeyMap.name -- Filter keymap items on this keymap_name
-            allow_removing: set[KeyMapItem.map_type] -- Make button for removing keymap active
-            column: UILayout -- Layout column
+    Args:
+        keymap_items: list[KeyMapItem] -- Addon keymap items
+        keymap_name: KeyMap.name -- Filter keymap items on this keymap_name
+        allow_removing: set[KeyMapItem.map_type] -- Make button for removing keymap active
+        column: UILayout -- Layout column
     """
 
     kc = bpy.context.window_manager.keyconfigs.user
@@ -37,9 +39,9 @@ def draw_keymap_items(keymap_items: list[KeyMapItem],
         rna_keymap_ui.draw_kmi(['ADDON', 'USER', 'DEFAULT'], kc, km, kmi, column, 0)
 
 
-def draw_modal_keymap_items(keymap_items: CollectionProperty,
-                            tag: str,
-                            column: UILayout) -> None:
+def draw_modal_keymap_items(
+    keymap_items: bpy.types.bpy_prop_collection_idprop[properties.ModalKeyMapItem], tag: str, column: bpy.types.UILayout
+) -> None:
 
     for kmi in keymap_items.values():
         if kmi.tag == tag:

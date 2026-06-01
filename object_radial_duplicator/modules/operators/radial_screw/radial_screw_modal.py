@@ -1,189 +1,207 @@
-from math import ceil
-from math import degrees
-from math import radians
-from typing import Any, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Sequence
+from math import ceil, degrees, radians
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import bpy
 import gpu
+import gpu_extras
 import numpy as np
-from bpy.types import Object
-from gpu_extras.batch import batch_for_shader
-from gpu.types import GPUBatch
-from mathutils import Matrix
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from ....addon_info import get_preferences
+from ... import properties
 from ...preferences.preferences import RADDUPLICATOR_preferences
-from ...properties import ModalKeyMapItem
-from ...radial_objects.radial_screw_object import ObjectRadialScrews
-from ...radial_objects.radial_screw_object import RadialScrew
-from ...utils.math import build_circle
-from ...utils.math import flatten_vec
-from ...utils.math import get_axis_vec
-from ...utils.modal import event_match_kmi
-from ...utils.modal import event_type_is_digit
-from ...utils.modal import event_type_to_digit
-from ...utils.modal import get_property_default
-from ...utils.object_data import data_is_selected
-from ...utils.object_data import get_data_center_co_world
+from ...radial_objects import radial_screw_object
 from ...utils.gpu_draw import draw_bg
+from ...utils.math import build_circle, flatten_vec, get_axis_vec
+from ...utils.modal import event_type_is_digit, event_type_to_digit, get_property_default, is_event_match_kmi
+from ...utils.object_data import get_data_center_co_world, is_data_selected
 from ...utils.scene import get_unit
-from ...utils.text import draw_text_block
-from ...utils.text import get_text_block_dimensions
+from ...utils.text import draw_text_block, get_text_block_dimensions
 from ...utils.theme import get_axis_color
-from ...utils.view3d import get_non_overlap_width
-from ...utils.view3d import hide_sidebar
-from ...utils.view3d import restore_sidebar
+from ...utils.view3d import get_non_overlap_width, hide_sidebar, restore_sidebar
+
+if TYPE_CHECKING:
+    from bpy.stub_internal.rna_enums import OperatorReturnItems
 
 shader_2d = gpu.shader.from_builtin('UNIFORM_COLOR')
 shader_3d = gpu.shader.from_builtin('UNIFORM_COLOR')
 
 
 class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
-    bl_description = ("LMB: Edit screw or add a new one if it doesn't exist.\n"
-                      "+ Shift: Add a new screw instead of trying to edit existing.\n"
-                      "+ Ctrl: Set screw center to the 3D cursor instead of object pivot")
+    bl_description = (
+        "LMB: Edit screw or add a new one if it doesn't exist.\n"
+        "+ Shift: Add a new screw instead of trying to edit existing.\n"
+        "+ Ctrl: Set screw center to the 3D cursor instead of object pivot"
+    )
     bl_idname = "radial_duplicator.screw_modal"
     bl_label = "Screw Modal"
     bl_options = {'REGISTER', 'UNDO', 'GRAB_CURSOR', 'BLOCKING'}
 
-    # noinspection PyTypeChecker
-    spin_orientation: bpy.props.EnumProperty(
-        name="Spin Orientation",
-        description="Spin orientation",
-        items=[
-            ('GLOBAL', "Global", "Align the screw axes to world space", 'ORIENTATION_GLOBAL', 0),
-            ('LOCAL', "Local", "Align the screw axes to selected objects' local space", 'ORIENTATION_LOCAL', 1),
-            ('VIEW', "View", "Align the screw axes to the window", 'ORIENTATION_VIEW', 2),
-            ('NORMAL', "Normal", "Align the screw axes to average normal of selected mesh elements",
-             'ORIENTATION_NORMAL', 3),
-        ],
-        default='LOCAL',
-        options={'SKIP_SAVE'},
-    )
-    # noinspection PyTypeChecker
-    spin_axis: bpy.props.EnumProperty(
-        name="Spin Axis",
-        description="Axis along which spin will be performed",
-        items=[
-            ('X', "X", "Spin around axis X"),
-            ('Y', "Y", "Spin around axis Y"),
-            ('Z', "Z", "Spin around axis Z"),
-        ],
-        default='Z',
-        options={'SKIP_SAVE'},
-    )
-    steps: bpy.props.IntProperty(
-        name="Count",
-        description="Number of steps in the revolution",
-        min=1,
-        default=16,
-        options={'SKIP_SAVE'},
-    )
-    radius_offset: bpy.props.FloatProperty(
-        name="Radius Offset",
-        description="Moves each step a user-defined distance from the pivot point",
-        subtype='DISTANCE',
-        unit='LENGTH',
-        default=0.0,
-        options={'SKIP_SAVE'},
-    )
-    start_angle: bpy.props.FloatProperty(
-        name="Start Angle",
-        description="Rotation placement for the first step geometry as a number of degrees "
-        "offset from the initial 0 degrees",
-        subtype='ANGLE',
-        unit='ROTATION',
-        step=100,
-        default=radians(0),
-        options={'SKIP_SAVE'},
-    )
-    end_angle: bpy.props.FloatProperty(
-        name="End Angle",
-        description="Rotation placement for the last step geometry as a number of degrees "
-        "offset from 0 degrees",
-        subtype='ANGLE',
-        unit='ROTATION',
-        step=100,
-        default=radians(360),
-        options={'SKIP_SAVE'},
-    )
-    screw_offset: bpy.props.FloatProperty(
-        name="Screw Offset",
-        description="Offset the revolution along its axis",
-        subtype='DISTANCE',
-        unit='LENGTH',
-        default=0.0,
-        options={'SKIP_SAVE'},
-    )
-    iterations: bpy.props.IntProperty(
-        name="Count",
-        description="Number of times to apply the screw operation",
-        min=1,
-        default=1,
-        options={'SKIP_SAVE'},
-    )
-    # noinspection PyTypeChecker
-    pivot_point: bpy.props.EnumProperty(
-        name="Center",
-        description="Screw center",
-        items=[
-            ('ORIGIN', "Origin", "Object origin"),
-            ('CURSOR', "Cursor", "3D cursor"),
-            ('MESH_SELECTION', "Mesh Selection", "Mesh selection"),
-            ('ACTIVE_OBJECT', "Active Object", "Active object"),
-            ('AXIS_EMPTY', "Axis Empty", "Axis empty"),
-        ],
-        default='ORIGIN',
-        options={'SKIP_SAVE'}
-    )
-    new: bpy.props.BoolProperty(
-        name="Force New Screw",
-        description="Add a new radial screw instead of trying to pick up and edit existing",
-        default=False,
-        options={'SKIP_SAVE'}
-    )
-    from_button: bpy.props.BoolProperty(
-        name="From Button",
-        description="Operator is executed from a button. Ctrl and shift state determine pivot point",
-        default=False,
-        options={'SKIP_SAVE', 'HIDDEN'},
-    )
+    if TYPE_CHECKING:
+        spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL']
+        spin_axis: Literal['X', 'Y', 'Z']
+        steps: int
+        radius_offset: float
+        start_angle: float
+        end_angle: float
+        screw_offset: float
+        iterations: int
+        pivot_point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY']
+        new: bool
+        from_button: bool
+    else:
+        spin_orientation: bpy.props.EnumProperty(
+            name="Spin Orientation",
+            description="Spin orientation",
+            items=[
+                ('GLOBAL', "Global", "Align the screw axes to world space", 'ORIENTATION_GLOBAL', 0),
+                ('LOCAL', "Local", "Align the screw axes to selected objects' local space", 'ORIENTATION_LOCAL', 1),
+                ('VIEW', "View", "Align the screw axes to the window", 'ORIENTATION_VIEW', 2),
+                (
+                    'NORMAL',
+                    "Normal",
+                    "Align the screw axes to average normal of selected mesh elements",
+                    'ORIENTATION_NORMAL',
+                    3,
+                ),
+            ],
+            default='LOCAL',
+            options={'SKIP_SAVE'},
+        )
+        spin_axis: bpy.props.EnumProperty(
+            name="Spin Axis",
+            description="Axis along which spin will be performed",
+            items=[
+                ('X', "X", "Spin around axis X"),
+                ('Y', "Y", "Spin around axis Y"),
+                ('Z', "Z", "Spin around axis Z"),
+            ],
+            default='Z',
+            options={'SKIP_SAVE'},
+        )
+        steps: bpy.props.IntProperty(
+            name="Count",
+            description="Number of steps in the revolution",
+            min=1,
+            default=16,
+            options={'SKIP_SAVE'},
+        )
+        radius_offset: bpy.props.FloatProperty(
+            name="Radius Offset",
+            description="Moves each step a user-defined distance from the pivot point",
+            subtype='DISTANCE',
+            unit='LENGTH',
+            default=0.0,
+            options={'SKIP_SAVE'},
+        )
+        start_angle: bpy.props.FloatProperty(
+            name="Start Angle",
+            description="Rotation placement for the first step geometry as a number of degrees "
+            "offset from the initial 0 degrees",
+            subtype='ANGLE',
+            unit='ROTATION',
+            step=100,
+            default=radians(0),
+            options={'SKIP_SAVE'},
+        )
+        end_angle: bpy.props.FloatProperty(
+            name="End Angle",
+            description="Rotation placement for the last step geometry as a number of degrees offset from 0 degrees",
+            subtype='ANGLE',
+            unit='ROTATION',
+            step=100,
+            default=radians(360),
+            options={'SKIP_SAVE'},
+        )
+        screw_offset: bpy.props.FloatProperty(
+            name="Screw Offset",
+            description="Offset the revolution along its axis",
+            subtype='DISTANCE',
+            unit='LENGTH',
+            default=0.0,
+            options={'SKIP_SAVE'},
+        )
+        iterations: bpy.props.IntProperty(
+            name="Count",
+            description="Number of times to apply the screw operation",
+            min=1,
+            default=1,
+            options={'SKIP_SAVE'},
+        )
+        pivot_point: bpy.props.EnumProperty(
+            name="Center",
+            description="Screw center",
+            items=[
+                ('ORIGIN', "Origin", "Object origin"),
+                ('CURSOR', "Cursor", "3D cursor"),
+                ('MESH_SELECTION', "Mesh Selection", "Mesh selection"),
+                ('ACTIVE_OBJECT', "Active Object", "Active object"),
+                ('AXIS_EMPTY', "Axis Empty", "Axis empty"),
+            ],
+            default='ORIGIN',
+            options={'SKIP_SAVE'},
+        )
+        new: bpy.props.BoolProperty(
+            name="Force New Screw",
+            description="Add a new radial screw instead of trying to pick up and edit existing",
+            default=False,
+            options={'SKIP_SAVE'},
+        )
+        from_button: bpy.props.BoolProperty(
+            name="From Button",
+            description="Operator is executed from a button. Ctrl and shift state determine pivot point",
+            default=False,
+            options={'SKIP_SAVE', 'HIDDEN'},
+        )
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: bpy.types.Context) -> bool:
         ob = context.object
         return (
-                context.area.type == 'VIEW_3D'
-                and ob is not None
-                and ob.mode in {'OBJECT', 'EDIT'}
-                and ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT'}
-                and ob.library is None
-                and ob.data.library is None
+            context.area.type == 'VIEW_3D'
+            and ob is not None
+            and ob.mode in {'OBJECT', 'EDIT'}
+            and ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT'}
+            and ob.library is None  # pyright: ignore[reportUnnecessaryComparison]
+            and not (ob.data is not None and ob.data.library is not None)  # pyright: ignore[reportUnnecessaryComparison]
         )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if bpy.app.version >= (4, 4, 0):
             super().__init__(*args, **kwargs)
 
-        self.master_ob: Optional[Object] = None   # active selected object
-        self.slave_obs: Optional[list[Object]] = None  # nonactive selected objects
+        self.master_ob: bpy.types.Object | None = None  # active selected object
+        self.slave_obs: list[bpy.types.Object] | None = None  # nonactive selected objects
 
-        self.master_ob_radial_screws: Optional[ObjectRadialScrews] = None  # class from all radial screws of master_ob
-        self.master_radial_screw: Optional[RadialScrew] = None  # class from active radial screw of master_ob
-        self.slave_radial_screws: list[RadialScrew] = []  # class from top radial screws of slave_obs
+        self.master_ob_radial_screws: radial_screw_object.ObjectRadialScrews | None = (
+            None  # class from all radial screws of master_ob
+        )
+        self.master_radial_screw: radial_screw_object.RadialScrew | None = (
+            None  # class from active radial screw of master_ob
+        )
+        self.slave_radial_screws: list[
+            radial_screw_object.RadialScrew
+        ] = []  # class from top radial screws of slave_obs
 
         self.preferences: RADDUPLICATOR_preferences = get_preferences()
-        self.keymap_items: ModalKeyMapItem = self.preferences.keymaps["modal"].keymap_items
+        self.keymap_items: bpy.types.bpy_prop_collection_idprop[properties.ModalKeyMapItem] = self.preferences.keymaps[
+            "modal"
+        ].keymap_items
 
         self.initial_sidebar_state: bool = False
-        self.radial_screw_initial_attrs: dict[RadialScrew:dict[str:str]] = {}
-        self.radial_screw_last_set_pivot_points: dict[RadialScrew:str] = {}
+        self.radial_screw_initial_attrs: dict[radial_screw_object.RadialScrew, dict[str, Any]] = {}
+        self.radial_screw_last_set_pivot_points: dict[
+            radial_screw_object.RadialScrew,
+            Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'],
+        ] = {}
 
-        self.new_radial_screws: list[RadialScrew] = []
-        self.modified_radial_screws: set[RadialScrew] = set()
+        self.new_radial_screws: list[radial_screw_object.RadialScrew] = []
+        self.modified_radial_screws: set[radial_screw_object.RadialScrew] = set()
 
-        self.typed_string: Optional[str] = None
+        self.typed_string: str | None = None
         self.steps_before_typing: int = 0
 
         self.steps_float: float = self.steps
@@ -200,17 +218,17 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         self.screw_offset_changing: bool = False
         self.iterations_changing: bool = False
 
-        self.last_mouse_co: tuple[float, float] = (0, 0)
+        self.last_mouse_co: tuple[int, int] = (0, 0)
         self.use_wheelmouse: bool = self.preferences.use_wheelmouse
 
         self.handler_2d: object = None
         self.handler_3d: object = None
-        self.axis_circle_batch: Optional[GPUBatch] = None
-        self.angle_lines_batch: Optional[GPUBatch] = None
-        self.angle_fill_stencil_mask_batch: Optional[GPUBatch] = None
-        self.angle_fill_batch: Optional[GPUBatch] = None
+        self.axis_circle_batch: gpu.types.GPUBatch | None = None
+        self.angle_lines_batch: gpu.types.GPUBatch | None = None
+        self.angle_fill_stencil_mask_batch: gpu.types.GPUBatch | None = None
+        self.angle_fill_batch: gpu.types.GPUBatch | None = None
 
-    def invoke(self, context, event):
+    def invoke(self, context: bpy.types.Context, event: bpy.types.Event) -> set[OperatorReturnItems]:
         # Store initial settings, build radial screws,
         self.initial_sidebar_state = context.space_data.show_region_ui
         self.collect_objects_with_radial_screw(context)
@@ -235,9 +253,13 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
-    def collect_objects_with_radial_screw(self, context) -> None:
+    def collect_objects_with_radial_screw(self, context: bpy.types.Context) -> None:
         """Find objects for adding/getting radial screws."""
-        self.master_ob = context.object
+
+        # From poll
+        assert context.object is not None
+        assert context.selected_objects is not None
+
         self.slave_obs = [
             ob
             for ob in context.selected_objects
@@ -248,10 +270,14 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         if self.pivot_point == 'ACTIVE_OBJECT' and active_ob in self.slave_obs:
             self.slave_obs.remove(active_ob)
 
-    def build_radial_screws_on_init(self, context) -> None:
+    def build_radial_screws_on_init(self, context: bpy.types.Context) -> None:
         """Build radial screw classes from screw modifiers and store initial attributes
         or build new radial screw classes."""
-        self.master_ob_radial_screws = ObjectRadialScrews(context, self.master_ob)
+
+        # From previous logic
+        assert self.master_ob is not None
+
+        self.master_ob_radial_screws = radial_screw_object.ObjectRadialScrews(context, self.master_ob)
         if self.new:
             self.build_new_radial_screws(context)
         else:
@@ -259,52 +285,62 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             if not success:
                 self.build_new_radial_screws(context)
 
-    def build_radial_screws_from_modifiers(self, context) -> bool:
+    def build_radial_screws_from_modifiers(self, context: bpy.types.Context) -> bool:
         """Try building radial screw classes from screw modifiers, then store their initial attributes."""
-        self.master_radial_screw = self.master_ob_radial_screws[-1]
-        success = self.master_radial_screw is not None
-        if success:
-            self.store_existing_radial_screw_attrs(self.master_radial_screw)
-            if self.slave_obs:
-                for slave_ob in self.slave_obs:
-                    slave_ob_radial_screws = ObjectRadialScrews(context, slave_ob)
-                    slave_radial_screw = slave_ob_radial_screws[-1]
-                    if slave_radial_screw is None:
-                        slave_radial_screw = slave_ob_radial_screws.new()
-                        self.new_radial_screws.append(slave_radial_screw)
-                        self.slave_radial_screws.append(slave_radial_screw)
-                        self.store_new_radial_screw_attrs(slave_radial_screw)
-                    else:
-                        self.slave_radial_screws.append(slave_radial_screw)
-                        self.store_existing_radial_screw_attrs(slave_radial_screw)
-        return success
 
-    def build_new_radial_screws(self, context) -> None:
+        # From previous logic
+        assert self.master_ob is not None
+        assert self.master_ob_radial_screws is not None
+
+        self.master_radial_screw = self.master_ob_radial_screws.get_by_index(-1)
+
+        if self.master_radial_screw is None:
+            return False
+
+        self.store_existing_radial_screw_attrs(self.master_radial_screw)
+        if self.slave_obs:
+            for slave_ob in self.slave_obs:
+                slave_ob_radial_screws = radial_screw_object.ObjectRadialScrews(context, slave_ob)
+                slave_radial_screw = slave_ob_radial_screws.get_by_index(-1)
+                if slave_radial_screw is None:
+                    slave_radial_screw = slave_ob_radial_screws.new()
+                    self.new_radial_screws.append(slave_radial_screw)
+                    self.slave_radial_screws.append(slave_radial_screw)
+                    self.store_new_radial_screw_attrs(slave_radial_screw)
+                else:
+                    self.slave_radial_screws.append(slave_radial_screw)
+                    self.store_existing_radial_screw_attrs(slave_radial_screw)
+        return True
+
+    def build_new_radial_screws(self, context: bpy.types.Context) -> None:
         """Build new radial screw classes."""
+
+        # From previous logic
+        assert self.master_ob_radial_screws is not None
+
         self.master_radial_screw = self.master_ob_radial_screws.new()
         self.new_radial_screws.append(self.master_radial_screw)
         self.store_new_radial_screw_attrs(self.master_radial_screw)
         if self.slave_obs:
             for slave_ob in self.slave_obs:
-                slave_ob_radial_screws = ObjectRadialScrews(context, slave_ob)
+                slave_ob_radial_screws = radial_screw_object.ObjectRadialScrews(context, slave_ob)
                 slave_radial_screw = slave_ob_radial_screws.new()
                 self.new_radial_screws.append(slave_radial_screw)
                 self.slave_radial_screws.append(slave_radial_screw)
                 self.store_new_radial_screw_attrs(slave_radial_screw)
 
-    def store_new_radial_screw_attrs(self, radial_screw: RadialScrew) -> None:
+    def store_new_radial_screw_attrs(self, radial_screw: radial_screw_object.RadialScrew) -> None:
         """Store initial pivot point value of newly created screws"""
         if radial_screw not in self.radial_screw_initial_attrs:
-
             pivot_point = 'AXIS_EMPTY'
             pivot_point_co_world = radial_screw.pivot_point.co_world
 
             self.radial_screw_initial_attrs[radial_screw] = {
                 "pivot_point": pivot_point,
-                "pivot_point_co_world": pivot_point_co_world
+                "pivot_point_co_world": pivot_point_co_world,
             }
 
-    def store_existing_radial_screw_attrs(self, radial_screw: RadialScrew) -> None:
+    def store_existing_radial_screw_attrs(self, radial_screw: radial_screw_object.RadialScrew) -> None:
         """Store existing radial screw classes initial attributes on initialization or after switching to it
         to be able to restore them on CANCEL"""
         if radial_screw not in self.radial_screw_initial_attrs.keys():
@@ -324,10 +360,15 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 "screw_offset": props.screw_offset,
                 "iterations": props.iterations,
                 "pivot_point": pivot_point,
-                "pivot_point_co_world": pivot_point_co_world}
+                "pivot_point_co_world": pivot_point_co_world,
+            }
 
     def set_operator_properties_from_master_radial_screw(self) -> None:
         """Set operator properties to active radial screw properties on initialization or screw switching."""
+
+        # From previous logic
+        assert self.master_radial_screw is not None
+
         props = self.master_radial_screw.properties.value
         last_set_pivot_point = self.radial_screw_last_set_pivot_points.get(self.master_radial_screw)
 
@@ -346,9 +387,16 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         self.screw_offset = self.screw_offset_float = props.screw_offset
         self.iterations = self.iterations_float = props.iterations
 
-    def set_operator_properties_from_event_and_context(self, context, event) -> None:
+    def set_operator_properties_from_event_and_context(
+        self, context: bpy.types.Context, event: bpy.types.Event
+    ) -> None:
         """Set operator properties from object data selection and event."""
-        if context.object.mode == 'EDIT' and data_is_selected(context.object.data):
+
+        # From poll
+        assert context.object is not None
+        assert isinstance(context.object.data, bpy.types.Mesh | bpy.types.Curve)
+
+        if context.object.mode == 'EDIT' and is_data_selected(context.object.data):
             self.spin_orientation = 'NORMAL'
             self.pivot_point = 'MESH_SELECTION'
 
@@ -360,27 +408,34 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
     def modify_all_radial_screws(self) -> None:
         """Modify radial screws with operator properties."""
-        for radial_screw in [self.master_radial_screw] + self.slave_radial_screws:
 
+        # From previous logic
+        assert self.master_radial_screw is not None
+
+        for radial_screw in [self.master_radial_screw] + self.slave_radial_screws:
             # get initial Origin and Axis Empty location, not current
             pivot_point = self.get_pivot_point(radial_screw)
 
-            radial_screw.modify(self.spin_orientation,
-                                self.spin_axis,
-                                self.steps,
-                                self.radius_offset,
-                                self.start_angle,
-                                self.end_angle,
-                                self.screw_offset,
-                                self.iterations,
-                                pivot_point)
+            radial_screw.modify(
+                self.spin_orientation,
+                self.spin_axis,
+                self.steps,
+                self.radius_offset,
+                self.start_angle,
+                self.end_angle,
+                self.screw_offset,
+                self.iterations,
+                pivot_point,
+            )
 
             self.modified_radial_screws.add(radial_screw)
 
             # store pivot, so it can be retrieved after switching array
             self.radial_screw_last_set_pivot_points[radial_screw] = self.pivot_point
 
-    def get_pivot_point(self, radial_screw) -> Union[str, Vector]:
+    def get_pivot_point(
+        self, radial_screw: radial_screw_object.RadialScrew
+    ) -> Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector | None:
         """Get pivot point value taking into account changes of object origin. Allows toggling between stored initial
         pivot point."""
         last_set_pivot_point = self.radial_screw_last_set_pivot_points.get(radial_screw)
@@ -390,11 +445,7 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         if self.pivot_point == last_set_pivot_point:
             pivot_point = None
         # Get initial ORIGIN co
-        elif (
-            self.pivot_point == 'ORIGIN'
-            and initial_attrs is not None
-            and initial_attrs["pivot_point"] == 'ORIGIN'
-        ):
+        elif self.pivot_point == 'ORIGIN' and initial_attrs is not None and initial_attrs["pivot_point"] == 'ORIGIN':
             pivot_point = initial_attrs["pivot_point_co_world"]
         # Get initial AXIS_EMPTY co
         elif (
@@ -408,7 +459,10 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
         return pivot_point
 
-    def modal(self, context, event):
+    def modal(self, context: bpy.types.Context, event: bpy.types.Event) -> set[OperatorReturnItems]:
+        # From poll
+        assert context.object is not None
+
         if event.type == 'MOUSEMOVE':
             event_mouse_offset_x = event.mouse_region_x - self.last_mouse_co[0]
 
@@ -426,11 +480,13 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 divisor = 6000 if event.shift else 600
                 offset = event_mouse_offset_x / divisor
                 self.radius_offset_float += offset
-                if event.ctrl or (context.scene.tool_settings.use_snap
-                                  and context.scene.tool_settings.use_snap_scale
-                                  and context.scene.tool_settings.snap_elements == 'INCREMENT'
-                                  and not event.ctrl):
-                    rounded = round(self.radius_offset_float / .1) * .1
+                if event.ctrl or (
+                    context.scene.tool_settings.use_snap
+                    and context.scene.tool_settings.use_snap_scale
+                    and context.scene.tool_settings.snap_elements == 'INCREMENT'
+                    and not event.ctrl
+                ):
+                    rounded = round(self.radius_offset_float / 0.1) * 0.1
                     if self.radius_offset != rounded:
                         self.radius_offset = rounded
                         self.modify_all_radial_screws()
@@ -446,10 +502,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 divisor = 1800 if event.shift else 200
                 offset = event_mouse_offset_x / divisor
                 self.start_angle_float += offset
-                if event.ctrl or (context.scene.tool_settings.use_snap
-                                  and context.scene.tool_settings.use_snap_rotate
-                                  and context.scene.tool_settings.snap_elements == 'INCREMENT'
-                                  and not event.ctrl):
+                if event.ctrl or (
+                    context.scene.tool_settings.use_snap
+                    and context.scene.tool_settings.use_snap_rotate
+                    and context.scene.tool_settings.snap_elements == 'INCREMENT'
+                    and not event.ctrl
+                ):
                     rounded = radians(round(degrees(self.start_angle_float) / 10) * 10)
                     if self.start_angle != rounded:
                         self.start_angle = rounded
@@ -466,10 +524,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 divisor = 1800 if event.shift else 200
                 offset = event_mouse_offset_x / divisor
                 self.end_angle_float += offset
-                if event.ctrl or (context.scene.tool_settings.use_snap
-                                  and context.scene.tool_settings.use_snap_rotate
-                                  and context.scene.tool_settings.snap_elements == 'INCREMENT'
-                                  and not event.ctrl):
+                if event.ctrl or (
+                    context.scene.tool_settings.use_snap
+                    and context.scene.tool_settings.use_snap_rotate
+                    and context.scene.tool_settings.snap_elements == 'INCREMENT'
+                    and not event.ctrl
+                ):
                     rounded = radians(round(degrees(self.end_angle_float) / 10) * 10)
                     if self.end_angle != rounded:
                         self.end_angle = rounded
@@ -486,11 +546,13 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 divisor = 1800 if event.shift else 200
                 offset = event_mouse_offset_x / divisor
                 self.screw_offset_float += offset
-                if event.ctrl or (context.scene.tool_settings.use_snap
-                                  and context.scene.tool_settings.use_snap_scale
-                                  and context.scene.tool_settings.snap_elements == 'INCREMENT'
-                                  and not event.ctrl):
-                    rounded = round(self.screw_offset_float / .1) * .1
+                if event.ctrl or (
+                    context.scene.tool_settings.use_snap
+                    and context.scene.tool_settings.use_snap_scale
+                    and context.scene.tool_settings.snap_elements == 'INCREMENT'
+                    and not event.ctrl
+                ):
+                    rounded = round(self.screw_offset_float / 0.1) * 0.1
                     if self.screw_offset != rounded:
                         self.screw_offset = rounded
                         self.modify_all_radial_screws()
@@ -568,89 +630,98 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                         self.modify_all_radial_screws()
                     self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "spin_orientation"):
+            elif is_event_match_kmi(self, event, "spin_orientation"):
                 if context.mode == 'OBJECT':
-                    self.spin_orientation = {
-                        'GLOBAL': 'LOCAL',
-                        'LOCAL': 'VIEW',
-                        'VIEW': 'GLOBAL'
-                    }[self.spin_orientation]
+                    match self.spin_orientation:
+                        case 'GLOBAL':
+                            self.spin_orientation = 'LOCAL'
+                        case 'LOCAL':
+                            self.spin_orientation = 'VIEW'
+                        case 'VIEW':
+                            self.spin_orientation = 'GLOBAL'
+                        case _:
+                            pass
                 elif context.mode == 'EDIT_MESH':
-                    self.spin_orientation = {
-                        'GLOBAL': 'LOCAL',
-                        'LOCAL': 'VIEW',
-                        'VIEW': 'NORMAL',
-                        'NORMAL': 'GLOBAL'
-                    }[self.spin_orientation]
+                    match self.spin_orientation:
+                        case 'GLOBAL':
+                            self.spin_orientation = 'LOCAL'
+                        case 'LOCAL':
+                            self.spin_orientation = 'VIEW'
+                        case 'VIEW':
+                            self.spin_orientation = 'NORMAL'
+                        case 'NORMAL':
+                            self.spin_orientation = 'GLOBAL'
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "spin_axis"):
-                self.spin_axis = {
-                    'X': 'Y',
-                    'Y': 'Z',
-                    'Z': 'X'
-                }[self.spin_axis]
+            elif is_event_match_kmi(self, event, "spin_axis"):
+                match self.spin_axis:
+                    case 'X':
+                        self.spin_axis = 'Y'
+                    case 'Y':
+                        self.spin_axis = 'Z'
+                    case 'Z':
+                        self.spin_axis = 'X'
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "x_axis"):
+            elif is_event_match_kmi(self, event, "x_axis"):
                 self.spin_axis = 'X'
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "y_axis"):
+            elif is_event_match_kmi(self, event, "y_axis"):
                 self.spin_axis = 'Y'
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "z_axis"):
+            elif is_event_match_kmi(self, event, "z_axis"):
                 self.spin_axis = 'Z'
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "pivot_point"):
+            elif is_event_match_kmi(self, event, "pivot_point"):
                 self.set_next_pivot_point(context)
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif event_match_kmi(self, event, "count_changing"):
+            elif is_event_match_kmi(self, event, "count_changing"):
                 self.cancel_typing(context)
                 self.steps_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif event_match_kmi(self, event, "radius_offset_changing") and context.object.type == 'MESH':
+            elif is_event_match_kmi(self, event, "radius_offset_changing") and context.object.type == 'MESH':
                 self.radius_offset_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif event_match_kmi(self, event, "start_angle_changing"):
+            elif is_event_match_kmi(self, event, "start_angle_changing"):
                 self.start_angle_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif event_match_kmi(self, event, "end_angle_changing"):
+            elif is_event_match_kmi(self, event, "end_angle_changing"):
                 self.end_angle_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif event_match_kmi(self, event, "height_offset_changing"):
+            elif is_event_match_kmi(self, event, "height_offset_changing"):
                 self.screw_offset_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif event_match_kmi(self, event, "iterations_changing"):
+            elif is_event_match_kmi(self, event, "iterations_changing"):
                 self.iterations_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif event_match_kmi(self, event, "reset_count"):
+            elif is_event_match_kmi(self, event, "reset_count"):
                 if self.typed_string is not None:
                     self.typed_string = None
                     self.redraw_header(context)
@@ -658,45 +729,45 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 self.modify_all_radial_screws()
                 self.redraw_header(context)
 
-            elif event_match_kmi(self, event, "reset_radius_offset"):
+            elif is_event_match_kmi(self, event, "reset_radius_offset"):
                 self.radius_offset = self.radius_offset_float = get_property_default(self, "radius_offset")
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif event_match_kmi(self, event, "reset_start_angle"):
+            elif is_event_match_kmi(self, event, "reset_start_angle"):
                 self.start_angle = self.start_angle_float = get_property_default(self, "start_angle")
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif event_match_kmi(self, event, "reset_end_angle"):
+            elif is_event_match_kmi(self, event, "reset_end_angle"):
                 self.end_angle = self.end_angle_float = get_property_default(self, "end_angle")
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif event_match_kmi(self, event, "reset_height_offset"):
+            elif is_event_match_kmi(self, event, "reset_height_offset"):
                 self.screw_offset = self.screw_offset_float = get_property_default(self, "screw_offset")
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif event_match_kmi(self, event, "reset_iterations"):
+            elif is_event_match_kmi(self, event, "reset_iterations"):
                 self.iterations = self.iterations_float = get_property_default(self, "iterations")
                 self.modify_all_radial_screws()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif event_match_kmi(self, event, "add"):
+            elif is_event_match_kmi(self, event, "add"):
                 self.add_radial_screws(context)
 
-            elif event_match_kmi(self, event, "apply") and context.object.type == 'MESH':
+            elif is_event_match_kmi(self, event, "apply") and context.object.type == 'MESH':
                 self.apply_active_radial_screws()
                 self.finish_modal(context)
                 return {'FINISHED'}
 
-            elif event_match_kmi(self, event, "remove"):
+            elif is_event_match_kmi(self, event, "remove"):
                 self.remove_active_radial_screws()
                 self.finish_modal(context)
                 return {'FINISHED'}
@@ -711,57 +782,71 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
                 return {'FINISHED'}
 
         elif event.value == 'RELEASE':
-            if event_match_kmi(self, event, "count_changing", release=True):
+            if is_event_match_kmi(self, event, "count_changing", release=True):
                 self.cancel_typing(context)
                 self.steps_changing = False
                 context.window.cursor_modal_restore()
 
-            elif event_match_kmi(self, event, "radius_offset_changing", release=True):
+            elif is_event_match_kmi(self, event, "radius_offset_changing", release=True):
                 self.radius_offset_changing = False
                 context.window.cursor_modal_restore()
 
-            elif event_match_kmi(self, event, "start_angle_changing", release=True):
+            elif is_event_match_kmi(self, event, "start_angle_changing", release=True):
                 self.start_angle_changing = False
                 context.window.cursor_modal_restore()
 
-            elif event_match_kmi(self, event, "end_angle_changing", release=True):
+            elif is_event_match_kmi(self, event, "end_angle_changing", release=True):
                 self.end_angle_changing = False
                 context.window.cursor_modal_restore()
 
-            elif event_match_kmi(self, event, "height_offset_changing", release=True):
+            elif is_event_match_kmi(self, event, "height_offset_changing", release=True):
                 self.screw_offset_changing = False
                 context.window.cursor_modal_restore()
 
-            elif event_match_kmi(self, event, "iterations_changing", release=True):
+            elif is_event_match_kmi(self, event, "iterations_changing", release=True):
                 self.iterations_changing = False
                 context.window.cursor_modal_restore()
 
         return {'RUNNING_MODAL'}
 
-    def cancel_typing(self, context) -> None:
+    def cancel_typing(self, context: bpy.types.Context) -> None:
         if self.typed_string is not None:
             self.typed_string = None
             self.redraw_header(context)
 
-    def set_next_pivot_point(self, context) -> None:
+    def set_next_pivot_point(self, context: bpy.types.Context) -> None:
         """Set next pivot point from cycle."""
 
         if context.mode == 'OBJECT':
-            self.pivot_point = {
-                'CURSOR': 'ORIGIN',
-                'ORIGIN': 'AXIS_EMPTY',
-                'AXIS_EMPTY': 'CURSOR'
-            }[self.pivot_point]
+            match self.pivot_point:
+                case 'CURSOR':
+                    self.pivot_point = 'ORIGIN'
+                case 'ORIGIN':
+                    self.pivot_point = 'AXIS_EMPTY'
+                case 'AXIS_EMPTY':
+                    self.pivot_point = 'CURSOR'
+                case _:
+                    pass
         elif context.mode == 'EDIT_MESH':
-            self.pivot_point = {
-                'CURSOR': 'ORIGIN',
-                'ORIGIN': 'AXIS_EMPTY',
-                'AXIS_EMPTY': 'MESH_SELECTION',
-                'MESH_SELECTION': 'CURSOR'
-            }[self.pivot_point]
+            match self.pivot_point:
+                case 'CURSOR':
+                    self.pivot_point = 'ORIGIN'
+                case 'ORIGIN':
+                    self.pivot_point = 'AXIS_EMPTY'
+                case 'AXIS_EMPTY':
+                    self.pivot_point = 'MESH_SELECTION'
+                case 'MESH_SELECTION':
+                    self.pivot_point = 'CURSOR'
+                case _:
+                    pass
 
-    def switch_radial_screw(self, context, direction: str) -> None:
+    def switch_radial_screw(self, context: bpy.types.Context, direction: str) -> None:
         """Search for next/prev radial screw and switch to it if it's found."""
+
+        # From previous logic
+        assert self.master_ob_radial_screws is not None
+        assert self.master_radial_screw is not None
+
         active_idx = self.master_ob_radial_screws.value.index(self.master_radial_screw)
 
         if direction == 'PREV':
@@ -772,7 +857,8 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             raise ValueError("direction is invalid")
 
         if 0 <= idx < len(self.master_ob_radial_screws.value):
-            self.master_radial_screw = self.master_ob_radial_screws[idx]
+            self.master_radial_screw = self.master_ob_radial_screws.get_by_index(idx)
+            assert self.master_radial_screw is not None
             if self.master_radial_screw not in self.radial_screw_initial_attrs:
                 self.store_existing_radial_screw_attrs(self.master_radial_screw)
             self.set_operator_properties_from_master_radial_screw()
@@ -798,10 +884,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             attrs = self.radial_screw_initial_attrs[radial_screw]
 
             props["spin_orientation_matrix_object"] = np.array(attrs["spin_orientation_matrix_object"]).T.ravel()
-            spin_orientation_enums = props.bl_rna.properties["spin_orientation"].enum_items
-            props["spin_orientation"] = spin_orientation_enums.find(attrs["spin_orientation"])
-            spin_axis_enums = props.bl_rna.properties["spin_axis"].enum_items
-            props["spin_axis"] = spin_axis_enums.find(attrs["spin_axis"])
+            spin_orientation_enum = cast(bpy.types.EnumProperty, props.bl_rna.properties["spin_orientation"])
+            spin_orientation_enum_items = spin_orientation_enum.enum_items
+            props["spin_orientation"] = spin_orientation_enum_items.find(attrs["spin_orientation"])
+            spin_axis_enum = cast(bpy.types.EnumProperty, props.bl_rna.properties["spin_axis"])
+            spin_axis_enum_items = spin_axis_enum.enum_items
+            props["spin_axis"] = spin_axis_enum_items.find(attrs["spin_axis"])
 
             props["steps"] = attrs["steps"]
             props["radius_offset"] = attrs["radius_offset"]
@@ -818,7 +906,7 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             else:
                 radial_screw.refresh()
 
-    def add_radial_screws(self, context) -> None:
+    def add_radial_screws(self, context: bpy.types.Context) -> None:
         """Add radial screws to selected objects."""
         self.pivot_point = 'CURSOR'
         self.build_new_radial_screws(context)
@@ -828,6 +916,10 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
     def apply_active_radial_screws(self) -> None:
         """Apply active radial screws."""
+
+        # From previous logic
+        assert self.master_radial_screw is not None
+
         for radial_screw in [self.master_radial_screw] + self.slave_radial_screws:
             message = radial_screw.apply()
             if message:
@@ -835,10 +927,14 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
     def remove_active_radial_screws(self) -> None:
         """Remove active radial screws."""
+
+        # From previous logic
+        assert self.master_radial_screw is not None
+
         for radial_screw in [self.master_radial_screw] + self.slave_radial_screws:
             radial_screw.remove()
 
-    def finish_modal(self, context) -> None:
+    def finish_modal(self, context: bpy.types.Context) -> None:
         """Remove status, header, sidebar, cursor, shaders."""
         restore_sidebar(context, self.initial_sidebar_state)
         context.area.header_text_set(text=None)
@@ -848,7 +944,7 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         context.space_data.draw_handler_remove(self.handler_3d, 'WINDOW')
         context.region.tag_redraw()
 
-    def redraw_header(self, context) -> None:
+    def redraw_header(self, context: bpy.types.Context) -> None:
         """Draw count and spin axis in the header."""
         text = (
             f"count: {self.steps}  Spin Axis: {self.spin_orientation.title()} {self.spin_axis.title()}"
@@ -857,8 +953,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         )
         context.area.header_text_set(text)
 
-    def redraw_status(self, context) -> None:
+    def redraw_status(self, context: bpy.types.Context) -> None:
         """Draw shortcuts in the status."""
+
+        # From previous logic
+        assert self.master_ob is not None
+
         x_axis_key = self.keymap_items["x_axis"].type
         y_axis_key = self.keymap_items["y_axis"].type
         z_axis_key = self.keymap_items["z_axis"].type
@@ -882,10 +982,17 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         )
         context.workspace.status_text_set(status_text)
 
-    def draw_2d_shaders(self, context):
+    def draw_2d_shaders(self, context: bpy.types.Context):
         """Draw 2d overlay with shortcuts and attributes in 3d view."""
+
+        # From poll
+        assert context.object is not None
+
+        # From previous logic
+        assert self.master_ob_radial_screws is not None
+        assert self.master_radial_screw is not None
+
         ui_scale = context.preferences.view.ui_scale
-        dpi = context.preferences.system.dpi
         op_properties = self.properties.bl_rna.properties
         unit = get_unit(context)
 
@@ -904,10 +1011,14 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         z_axis_key = self.keymap_items["z_axis"].type
 
         spin_axis_key = self.keymap_items["spin_axis"].type
-        spin_axis = op_properties["spin_axis"].enum_items[self.spin_axis].name
+        spin_axis_enum = cast(bpy.types.EnumProperty, op_properties["spin_axis"])
+        spin_axis_enum_items = spin_axis_enum.enum_items
+        spin_axis = spin_axis_enum_items[self.spin_axis].name
 
         spin_orientation_key = self.keymap_items["spin_orientation"].type
-        spin_orientation = op_properties["spin_orientation"].enum_items[self.spin_orientation].name
+        spin_orientation_enum = cast(bpy.types.EnumProperty, op_properties["spin_orientation"])
+        spin_orientation_enum_items = spin_orientation_enum.enum_items
+        spin_orientation = spin_orientation_enum_items[self.spin_orientation].name
 
         radius_offset_key = self.keymap_items["radius_offset_changing"].type
         radius_offset = round(self.radius_offset, 2)
@@ -925,7 +1036,9 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         iterations = str(self.iterations)
 
         pivot_point_key = self.keymap_items["pivot_point"].type
-        pivot_point = op_properties["pivot_point"].enum_items[self.pivot_point].name
+        pivot_point_enum = cast(bpy.types.EnumProperty, op_properties["pivot_point"])
+        pivot_point_enum_items = pivot_point_enum.enum_items
+        pivot_point = pivot_point_enum_items[self.pivot_point].name
 
         # Props lines
         steps_line = [
@@ -951,12 +1064,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         start_angle_line = [
             ("Start Angle:", main_color),
             (f" ({start_angle_key})", key_color),
-            (f" {start_angle:.2f}°", val_color)
+            (f" {start_angle:.2f}°", val_color),
         ]
         end_angle_line = [
             ("End Angle:", main_color),
             (f" ({end_angle_key})", key_color),
-            (f" {end_angle:.2f}°", val_color)
+            (f" {end_angle:.2f}°", val_color),
         ]
         screw_offset_line = [
             ("Screw Offset:", main_color),
@@ -971,7 +1084,7 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         pivot_point_line = [
             ("Center:", main_color),
             (f" ({pivot_point_key})", key_color),
-            (f" {pivot_point}", val_color)
+            (f" {pivot_point}", val_color),
         ]
 
         # Props lines joined
@@ -993,13 +1106,16 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         radial_screw_name = self.master_radial_screw.name
         radial_screw_count = len(self.master_ob_radial_screws.value)
 
+        name_text_lines: list[list[tuple[str, Sequence[float]]]]
         if radial_screw_count > 1:
             current_idx = self.master_ob_radial_screws.value.index(self.master_radial_screw) + 1
-            name_text_lines = [[
-                (radial_screw_name, main_color),
-                (f" (\u21c5)", key_color),
-                (f" {current_idx}/{radial_screw_count}", val_color)
-            ]]
+            name_text_lines = [
+                [
+                    (radial_screw_name, main_color),
+                    (" (\u21c5)", key_color),
+                    (f" {current_idx}/{radial_screw_count}", val_color),
+                ]
+            ]
         else:
             name_text_lines = [[]]
 
@@ -1015,10 +1131,12 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         offset_x, offset_y = 100, 100  # offset of overlay box from 3d view borders
 
         # Calculate text dimensions
-        props_text_block_width, props_text_block_height = \
-            get_text_block_dimensions(props_text_lines, line_padding, font_id, font_size, dpi)
-        name_text_block_width, name_text_block_height = \
-            get_text_block_dimensions(name_text_lines, line_padding, font_id, font_size, dpi)
+        props_text_block_width, props_text_block_height = get_text_block_dimensions(
+            props_text_lines, line_padding, font_id, font_size
+        )
+        name_text_block_width, name_text_block_height = get_text_block_dimensions(
+            name_text_lines, line_padding, font_id, font_size
+        )
 
         # Calculate text coordinates
         props_text_block_x_right = get_non_overlap_width(context) - offset_x
@@ -1027,18 +1145,25 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         props_text_block_y_top = props_text_block_y_bottom + props_text_block_height
 
         # Draw
-        draw_bg(shader_2d,
-                props_text_block_x_right,
-                props_text_block_y_bottom,
-                props_text_block_x_left,
-                props_text_block_y_top,
-                bg_padding,
-                bg_color)
+        draw_bg(
+            shader_2d,
+            props_text_block_x_right,
+            props_text_block_y_bottom,
+            props_text_block_x_left,
+            props_text_block_y_top,
+            bg_padding,
+            bg_color,
+        )
 
-        draw_text_block(props_text_lines,
-                        props_text_block_x_left,
-                        props_text_block_y_top,
-                        line_padding, align, font_id, font_size, dpi)
+        draw_text_block(
+            props_text_lines,
+            props_text_block_x_left,
+            props_text_block_y_top,
+            line_padding,
+            align,
+            font_id,
+            font_size,
+        )
 
         if radial_screw_count > 1:
             # Calculate text coordinates
@@ -1048,21 +1173,33 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             name_text_block_y_top = name_text_block_y_bottom + name_text_block_height
 
             # Draw
-            draw_bg(shader_2d,
-                    name_text_block_x_right,
-                    name_text_block_y_bottom,
-                    name_text_block_x_left,
-                    name_text_block_y_top,
-                    bg_padding,
-                    bg_color)
+            draw_bg(
+                shader_2d,
+                name_text_block_x_right,
+                name_text_block_y_bottom,
+                name_text_block_x_left,
+                name_text_block_y_top,
+                bg_padding,
+                bg_color,
+            )
 
-            draw_text_block(name_text_lines,
-                            name_text_block_x_left,
-                            name_text_block_y_top,
-                            line_padding, align, font_id, font_size, dpi)
+            draw_text_block(
+                name_text_lines,
+                name_text_block_x_left,
+                name_text_block_y_top,
+                line_padding,
+                align,
+                font_id,
+                font_size,
+            )
 
     def build_3d_shader_batches(self):
         """Build axis circle and angle lines shader batches."""
+
+        # From previous logic
+        assert self.master_ob is not None
+        assert self.master_radial_screw is not None
+
         properties = self.master_radial_screw.properties.value
         pivot_point_co_world = self.master_radial_screw.pivot_point.co_world
         spin_orientation_matrix_world = self.master_ob.matrix_world @ properties.spin_orientation_matrix_object
@@ -1097,10 +1234,10 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
         # Compose axis circle matrix
         if self.spin_axis == 'X':
-            rot_matrix = Matrix([Vector((0, 0, 1)), Vector((0, 1, 0)), Vector((1, 0, 0))])
+            rot_matrix = Matrix([(0, 0, 1), (0, 1, 0), (1, 0, 0)])
             axis_circle_matrix_world = spin_orientation_matrix_world @ rot_matrix.to_4x4()
         elif self.spin_axis == 'Y':
-            rot_matrix = Matrix([Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0))])
+            rot_matrix = Matrix([(1, 0, 0), (0, 0, 1), (0, 1, 0)])
             axis_circle_matrix_world = spin_orientation_matrix_world @ rot_matrix.to_4x4()
         elif self.spin_axis == 'Z':
             axis_circle_matrix_world = spin_orientation_matrix_world
@@ -1117,26 +1254,38 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         axis_circle_vertices = axis_circle_vertices @ mat + loc
         axis_circle_vertices = axis_circle_vertices.tolist()
 
-        self.axis_circle_batch = batch_for_shader(shader_3d, 'LINE_LOOP', {"pos": axis_circle_vertices})
+        self.axis_circle_batch = gpu_extras.batch.batch_for_shader(
+            shader_3d,
+            'LINE_LOOP',  # pyright: ignore[reportArgumentType]
+            {"pos": axis_circle_vertices},
+        )
 
         op_properties = self.properties.bl_rna.properties
         if (
-            self.start_angle != op_properties["start_angle"].default
-            or self.end_angle != op_properties["end_angle"].default
+            self.start_angle != cast(bpy.types.FloatProperty, op_properties["start_angle"]).default
+            or self.end_angle != cast(bpy.types.FloatProperty, op_properties["end_angle"]).default
         ):
             # Build angle lines batch
-            start_rot_matrix = Matrix.Rotation(self.start_angle, 4, spin_vec_spin)
+            start_rot_matrix = Matrix.Rotation(self.start_angle, 4, spin_vec_spin[:])
             start_angle_co_spin = start_rot_matrix @ radius_vec_spin
             start_angle_co_world = spin_orientation_matrix_world @ start_angle_co_spin
 
-            end_rot_matrix = Matrix.Rotation(self.end_angle, 4, spin_vec_spin)
+            end_rot_matrix = Matrix.Rotation(self.end_angle, 4, spin_vec_spin[:])
             end_angle_co_spin = end_rot_matrix @ radius_vec_spin
             end_angle_co_world = spin_orientation_matrix_world @ end_angle_co_spin
 
-            vertices = [pivot_point_co_world, start_angle_co_world,
-                        pivot_point_co_world, end_angle_co_world]
+            vertices = [
+                pivot_point_co_world[:],
+                start_angle_co_world[:],
+                pivot_point_co_world[:],
+                end_angle_co_world[:],
+            ]
 
-            self.angle_lines_batch = batch_for_shader(shader_3d, 'LINES', {"pos": vertices})
+            self.angle_lines_batch = gpu_extras.batch.batch_for_shader(
+                shader_3d,
+                'LINES',
+                {"pos": vertices},
+            )
 
             # Build angle fill batch
             step_count = int(ceil(abs((self.end_angle - self.start_angle) / radians(5))))
@@ -1145,17 +1294,27 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             else:
                 step_angle = (self.end_angle - self.start_angle) / step_count
 
-            fill_vertices = [pivot_point_co_world]
+            fill_vertices = [pivot_point_co_world[:]]
             for i in range(step_count + 1):
-                step_rot_matrix = Matrix.Rotation(step_angle * i, 4, spin_vec_spin)
+                step_rot_matrix = Matrix.Rotation(step_angle * i, 4, spin_vec_spin[:])
                 step_co_spin = step_rot_matrix @ start_angle_co_spin
                 step_co_world = spin_orientation_matrix_world @ step_co_spin
-                fill_vertices.append(step_co_world)
+                fill_vertices.append(step_co_world[:])
 
-            self.angle_fill_batch = batch_for_shader(shader_3d, 'TRI_FAN', {"pos": fill_vertices})
+            self.angle_fill_batch = gpu_extras.batch.batch_for_shader(
+                shader_3d,
+                'TRI_FAN',  # pyright: ignore[reportArgumentType]
+                {"pos": fill_vertices},
+            )
 
-    def draw_3d_shaders(self, context):
+    def draw_3d_shaders(self, context: bpy.types.Context):
         """Draw 3d shaders (angle lines and axis circle)."""
+
+        # From previous logic
+        assert self.axis_circle_batch is not None
+        assert self.angle_lines_batch is not None
+        assert self.angle_fill_batch is not None
+
         axis_color = get_axis_color(context, self.spin_axis)
 
         shader_3d.bind()
@@ -1169,8 +1328,8 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
         op_properties = self.properties.bl_rna.properties
         if (
-            self.start_angle != op_properties["start_angle"].default
-            or self.end_angle != op_properties["end_angle"].default
+            self.start_angle != cast(bpy.types.FloatProperty, op_properties["start_angle"]).default
+            or self.end_angle != cast(bpy.types.FloatProperty, op_properties["end_angle"]).default
         ):
             # Angle lines
             self.angle_lines_batch.draw(shader_3d)
@@ -1184,18 +1343,18 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         gpu.state.line_width_set(1)
 
 
-classes = (
-    RADDUPLICATOR_OT_radial_screw_modal,
-)
+classes = (RADDUPLICATOR_OT_radial_screw_modal,)
 
 
 def register():
     from bpy.utils import register_class
+
     for cls in classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
+
     for cls in classes:
         unregister_class(cls)

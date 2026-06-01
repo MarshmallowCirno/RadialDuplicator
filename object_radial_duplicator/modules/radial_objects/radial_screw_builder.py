@@ -1,54 +1,62 @@
 import re
-from typing import Optional
+from typing import TYPE_CHECKING, TypeGuard, cast
 
 import bpy
 import numpy as np
-from bpy.types import ScrewModifier
-from bpy.types import Context
-from bpy.types import NodesModifier
-from bpy.types import NodeTree
-from bpy.types import Object
-from mathutils import Matrix
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
-from .. import properties
-from ..utils.object import copy_collections
-from ..utils.object import copy_local_view_state
-from ..utils.object import get_modifier_index
+from ... import properties
+from ..utils.object import copy_collections, copy_local_view_state, get_modifier_index
+
+if TYPE_CHECKING:
+    from . import radial_screw_object
 
 
-def find_screw_mod(ob: Object, name: str) -> Optional[ScrewModifier]:
+def _is_mirror_mod(mod: bpy.types.Modifier) -> TypeGuard[bpy.types.MirrorModifier]:
+    return mod.type == 'MIRROR'
+
+
+def _is_nodes_mod(mod: bpy.types.Modifier) -> TypeGuard[bpy.types.NodesModifier]:
+    return mod.type == 'NODES'
+
+
+def _is_screw_mod(mod: bpy.types.Modifier) -> TypeGuard[bpy.types.ScrewModifier]:
+    return mod.type == 'SCREW'
+
+
+def find_screw_mod(ob: bpy.types.Object, name: str) -> bpy.types.ScrewModifier | None:
     """Find screw modifier by name."""
     screw_mod = ob.modifiers.get(name)
     return screw_mod
 
 
-def find_nodes_mod(ob: Object, name: str) -> Optional[NodesModifier]:
+def find_nodes_mod(ob: bpy.types.Object, name: str) -> bpy.types.NodesModifier | None:
     """Find nodes modifier by name."""
     match = re.search(r"\.[0-9]+$", name)
     index = "" if match is None else match.group(0)
     base_name = name.removesuffix(index)
-    nodes_mods = filter(lambda mod: mod.type == 'NODES' and mod.name == f"{base_name}Offset{index}", ob.modifiers)
+    nodes_mods = filter(_is_nodes_mod, ob.modifiers)
+    nodes_mods = filter(lambda mod: mod.name == f"{base_name}Offset{index}", nodes_mods)
     nodes_mod = next(nodes_mods, None)
     return nodes_mod
 
 
-def find_axis_empty(screw_mod: ScrewModifier) -> Optional[Object]:
+def find_axis_empty(screw_mod: bpy.types.ScrewModifier) -> bpy.types.Object | None:
     """Find axis empty of screw modifier."""
     axis_empty = screw_mod.object
     return axis_empty
 
 
-def find_props(ob: Object, name: str) -> Optional["properties.RadialScrewPropsGroup"]:
+def find_props(ob: bpy.types.Object, name: str) -> properties.RadialScrewPropsGroup | None:
     """Find object radial screw property group by name."""
-    props = ob.radial_duplicator.screws.get(name)
+    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+    props = props_collection.screws.get(name)
     return props
 
 
-def new_screw_mod(context: Context, ob: Object) -> ScrewModifier:
+def new_screw_mod(context: bpy.types.Context, ob: bpy.types.Object) -> bpy.types.ScrewModifier:
     """Add a new screw modifier to object and sort it."""
-    # noinspection PyTypeChecker
-    screw_mod: ScrewModifier = ob.modifiers.new(name="RadialScrew", type='SCREW')
+    screw_mod = cast(bpy.types.ScrewModifier, ob.modifiers.new(name="RadialScrew", type='SCREW'))
     screw_mod.use_merge_vertices = True
     screw_mod.show_expanded = False
     screw_mod.merge_threshold = 0.0001 / context.scene.unit_settings.scale_length  # .1mm
@@ -59,14 +67,13 @@ def new_screw_mod(context: Context, ob: Object) -> ScrewModifier:
 
 
 def new_nodes_mod(
-    ob: Object, screw_mod: ScrewModifier, props: "properties.RadialScrewPropsGroup", name: str
-) -> NodesModifier:
+    ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier, props: properties.RadialScrewPropsGroup, name: str
+) -> bpy.types.NodesModifier:
     """Add new nodes modifier to object and sort it."""
     match = re.search(r"\.[0-9]+$", name)
     index = "" if match is None else match.group(0)
     base_name = screw_mod.name.removesuffix(index)
-    # noinspection PyTypeChecker
-    nodes_mod: NodesModifier = ob.modifiers.new(name=f"{base_name}Offset{index}", type='NODES')
+    nodes_mod = cast(bpy.types.NodesModifier, ob.modifiers.new(name=f"{base_name}Offset{index}", type='NODES'))
     nodes_mod.node_group = new_node_group()
     nodes_mod.show_expanded = False
     nodes_mod.show_viewport = props.show_viewport
@@ -74,15 +81,17 @@ def new_nodes_mod(
     return nodes_mod
 
 
-def new_node_group() -> NodeTree:
+def new_node_group() -> bpy.types.NodeTree:
     """Add a new node group and return it."""
     node_group = bpy.data.node_groups.new(name="RadialScrewNodes", type='GeometryNodeTree')
 
     group_input = node_group.nodes.new(type='NodeGroupInput')
     group_output = node_group.nodes.new(type='NodeGroupOutput')
 
-    node_group.interface.new_socket(name="Geometry", in_out='INPUT', socket_type="NodeSocketGeometry")
-    node_group.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type="NodeSocketGeometry")
+    assert node_group.interface is not None
+
+    node_group.interface.new_socket(name="Geometry", in_out='INPUT', socket_type="NodeSocketGeometry")  # pyright: ignore[reportArgumentType]
+    node_group.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type="NodeSocketGeometry")  # pyright: ignore[reportArgumentType]
 
     radius_offset = node_group.nodes.new(type='GeometryNodeTransform')
     radius_offset.name = "RadiusOffset"
@@ -110,9 +119,11 @@ def new_node_group() -> NodeTree:
     return node_group
 
 
-def new_props(ob: Object, screw_mod: ScrewModifier, name: str) -> "properties.RadialScrewPropsGroup":
+def new_props(ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier, name: str) -> properties.RadialScrewPropsGroup:
     """Add a new radial screw property group and return it."""
-    props = ob.radial_duplicator.screws.add()
+    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+
+    props = props_collection.screws.add()
     props["name"] = name
     mx = ob.matrix_world.inverted()
     props["spin_orientation_matrix_object"] = np.array(mx).ravel()
@@ -120,11 +131,13 @@ def new_props(ob: Object, screw_mod: ScrewModifier, name: str) -> "properties.Ra
     return props
 
 
-def new_axis_empty(context: Context, ob: Object, screw_mod: ScrewModifier) -> Object:
+def new_axis_empty(
+    context: bpy.types.Context, ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier
+) -> bpy.types.Object:
     """Add a new center empty to property group and return it."""
     axis_empty = bpy.data.objects.new(name="ScrewEmpty", object_data=None)
     axis_empty.empty_display_type = 'SPHERE'
-    axis_empty.empty_display_size = max(ob.dimensions) / 2
+    axis_empty.empty_display_size = max(ob.dimensions[:]) / 2
     copy_collections(ob, axis_empty)
     copy_local_view_state(context, axis_empty)
     if ob.type != 'CURVE':
@@ -141,44 +154,50 @@ def new_axis_empty(context: Context, ob: Object, screw_mod: ScrewModifier) -> Ob
     return axis_empty
 
 
-def sort_screw_mod(ob: Object, screw_mod: ScrewModifier) -> None:
+def sort_screw_mod(ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier) -> None:
     """Place screw modifier after mirror, screw or on the top."""
     screw_mod_idx = ob.modifiers.find(screw_mod.name)
     other_mods = [mod for mod in ob.modifiers if mod != screw_mod]
 
-    another_screw_mods = filter(lambda mod: mod.type == 'SCREW', reversed(other_mods))
+    another_screw_mods = filter(_is_screw_mod, reversed(other_mods))
     another_screw_mod = next(another_screw_mods, None)
     if another_screw_mod is not None:
         another_screw_mod_idx = ob.modifiers.find(another_screw_mod.name)
-        new_screw_mod_idx = get_modifier_index(current_index=screw_mod_idx,
-                                               reference_index=another_screw_mod_idx,
-                                               position='AFTER')
+        new_screw_mod_idx = get_modifier_index(
+            current_index=screw_mod_idx, reference_index=another_screw_mod_idx, position='AFTER'
+        )
     else:
-        mirror_mods = filter(lambda mod: mod.type == 'MIRROR' and mod.mirror_object is None, reversed(other_mods))
+        mirror_mods = filter(_is_mirror_mod, reversed(other_mods))
+        mirror_mods = filter(lambda mod: mod.mirror_object is None, mirror_mods)
         mirror_mod = next(mirror_mods, None)
         if mirror_mod is not None:
             mirror_mod_idx = ob.modifiers.find(mirror_mod.name)
-            new_screw_mod_idx = get_modifier_index(current_index=screw_mod_idx,
-                                                   reference_index=mirror_mod_idx,
-                                                   position='AFTER')
+            new_screw_mod_idx = get_modifier_index(
+                current_index=screw_mod_idx, reference_index=mirror_mod_idx, position='AFTER'
+            )
         else:
             new_screw_mod_idx = 0
 
     ob.modifiers.move(from_index=screw_mod_idx, to_index=new_screw_mod_idx)
 
 
-def sort_nodes_mod(ob: Object, nodes_mod: NodesModifier, screw_mod: ScrewModifier) -> None:
+def sort_nodes_mod(
+    ob: bpy.types.Object, nodes_mod: bpy.types.NodesModifier, screw_mod: bpy.types.ScrewModifier
+) -> None:
     """Place nodes modifier before screw modifier."""
     nodes_mod_idx = ob.modifiers.find(nodes_mod.name)
     screw_mod_idx = ob.modifiers.find(screw_mod.name)
-    new_nodes_mod_idx = get_modifier_index(current_index=nodes_mod_idx,
-                                           reference_index=screw_mod_idx,
-                                           position='BEFORE')
+    new_nodes_mod_idx = get_modifier_index(
+        current_index=nodes_mod_idx, reference_index=screw_mod_idx, position='BEFORE'
+    )
     ob.modifiers.move(from_index=nodes_mod_idx, to_index=new_nodes_mod_idx)
 
 
 def restore_props(
-    ob: Object, screw_mod: ScrewModifier, axis_empty: Object, props: "properties.RadialScrewPropsGroup"
+    ob: bpy.types.Object,
+    screw_mod: bpy.types.ScrewModifier,
+    axis_empty: bpy.types.Object | None,
+    props: properties.RadialScrewPropsGroup,
 ) -> None:
     """Calculate and set correct values to properties in property group.
 
@@ -186,7 +205,7 @@ def restore_props(
     and replace them in radial screw properties. Assume that screw was rotated in local orientation.
     """
     if axis_empty is not None:
-        spin_axis_enums = props.bl_rna.properties["spin_axis"].enum_items
+        spin_axis_enums = cast(bpy.types.EnumProperty, props.bl_rna.properties["spin_axis"]).enum_items
         props["spin_axis"] = spin_axis_enums.find(get_spin_axis(ob, axis_empty))
     props["steps"] = screw_mod.steps
     props["end_angle"] = screw_mod.angle
@@ -194,7 +213,7 @@ def restore_props(
     props["iterations"] = screw_mod.iterations
 
 
-def get_spin_axis(ob: Object, offset_empty: Object) -> str:
+def get_spin_axis(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> str:
     """Calculate axis used for rotating offset_empty and return it.
 
     :return: Axis in ['X', 'Y', 'Z']
@@ -210,7 +229,7 @@ def get_spin_axis(ob: Object, offset_empty: Object) -> str:
     return spin_axis
 
 
-def get_pivot_co(ob: Object, offset_empty: Object) -> Vector:
+def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> Vector:
     """Calculate coordinate of pivot point of offset empty rotation and return it.
 
     Calculations are approximate and made by comparing the world space
@@ -220,21 +239,23 @@ def get_pivot_co(ob: Object, offset_empty: Object) -> Vector:
     transform_mx = offset_empty.matrix_world @ ob.matrix_world.inverted()
     a = Matrix.Identity(3) - transform_mx.to_3x3().normalized()
     b = transform_mx.to_translation()
-    pivot_co = Vector(np.linalg.lstsq(a, b, rcond=None)[0])
+    pivot_co = Vector(np.linalg.lstsq(a, b, rcond=None)[0])  # pyright: ignore[reportCallIssue, reportUnknownArgumentType, reportArgumentType]
     return pivot_co
 
 
-def remove_junk_props(ob: Object) -> None:
+def remove_junk_props(ob: bpy.types.Object) -> None:
     """Remove radial screw properties with name that have no matching screw modifier."""
-    for props in reversed(ob.radial_duplicator.screws):
+    props_collection = cast(properties.RadialCollections, ob.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
+
+    for props in reversed(props_collection.screws):
         mod = ob.modifiers.get(props.name)
         if mod is None or mod.type != 'SCREW' or "Radial" not in mod.name:
-            index = ob.radial_duplicator.screws.find(props.name)
-            ob.radial_duplicator.screws.remove(index)
+            index = props_collection.screws.find(props.name)
+            props_collection.screws.remove(index)
 
 
 def fix_nodes_mod(
-    ob: Object, screw_mod: ScrewModifier, nodes_mod: NodesModifier
+    ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier, nodes_mod: bpy.types.NodesModifier | None
 ) -> None:
     """Sort nodes modifier, set correct visibility and add nodes group if it's missing."""
     if nodes_mod is not None:
@@ -243,7 +264,7 @@ def fix_nodes_mod(
         sort_nodes_mod(ob, nodes_mod, screw_mod)
 
 
-def fix_axis_empty(ob: Object, axis_empty: Optional[Object]) -> None:
+def fix_axis_empty(ob: bpy.types.Object, axis_empty: bpy.types.Object | None) -> None:
     """Set correct axis empty collections."""
     if axis_empty is not None:
         if not axis_empty.users_collection:
@@ -252,58 +273,65 @@ def fix_axis_empty(ob: Object, axis_empty: Optional[Object]) -> None:
 
 class ExistingRadialScrewBuilder:
     @staticmethod
-    def get_screw_mod(ob: Object, name: str) -> Optional[ScrewModifier]:
+    def get_screw_mod(ob: bpy.types.Object, name: str) -> bpy.types.ScrewModifier | None:
         return find_screw_mod(ob, name)
 
     @staticmethod
-    def get_name(screw_mod: Optional[ScrewModifier]) -> str:
+    def get_name(screw_mod: bpy.types.ScrewModifier | None) -> str:
         return "" if screw_mod is None else screw_mod.name
 
     @staticmethod
-    def get_axis_empty(screw_mod: Optional[ScrewModifier]) -> Optional[Object]:
+    def get_axis_empty(screw_mod: bpy.types.ScrewModifier | None) -> bpy.types.Object | None:
         return None if screw_mod is None else find_axis_empty(screw_mod)
 
     @staticmethod
-    def get_props(ob: Object, screw_mod: Optional[ScrewModifier], name: str) -> \
-            Optional["properties.RadialScrewPropsGroup"]:
+    def get_props(
+        ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier | None, name: str
+    ) -> properties.RadialScrewPropsGroup | None:
         return None if screw_mod is None else find_props(ob, name)
 
     @staticmethod
-    def get_nodes_mod(ob: Object, screw_mod: Optional[ScrewModifier], name: str) -> Optional[NodesModifier]:
+    def get_nodes_mod(
+        ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier | None, name: str
+    ) -> bpy.types.NodesModifier | None:
         return None if screw_mod is None else find_nodes_mod(ob, name)
 
 
 class NewRadialScrewBuilder:
     @staticmethod
-    def get_screw_mod(context: Context, ob: Object) -> ScrewModifier:
+    def get_screw_mod(context: bpy.types.Context, ob: bpy.types.Object) -> bpy.types.ScrewModifier:
         return new_screw_mod(context, ob)
 
     @staticmethod
-    def get_name(screw_mod: ScrewModifier) -> str:
+    def get_name(screw_mod: bpy.types.ScrewModifier) -> str:
         return screw_mod.name
 
     @staticmethod
-    def get_axis_empty(context: Context, ob: Object, screw_mod: ScrewModifier) -> Object:
+    def get_axis_empty(
+        context: bpy.types.Context, ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier
+    ) -> bpy.types.Object:
         return new_axis_empty(context, ob, screw_mod)
 
     @staticmethod
-    def get_props(ob: Object, screw_mod: ScrewModifier, name: str) -> "properties.RadialScrewPropsGroup":
+    def get_props(
+        ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier, name: str
+    ) -> properties.RadialScrewPropsGroup:
         props = find_props(ob, name)
         if props is None:
             props = new_props(ob, screw_mod, name)
         return props
 
     @staticmethod
-    def get_nodes_mod(ob: Object, name: str) -> Optional[NodesModifier]:
+    def get_nodes_mod(ob: bpy.types.Object, name: str) -> bpy.types.NodesModifier | None:
         return find_nodes_mod(ob, name)
 
 
-class RadialScrewDirector:
-    def __init__(self, cls, object_radial_screws):
+class RadialScrewDirector[T: "radial_screw_object.RadialScrew"]:
+    def __init__(self, cls: type[T], object_radial_screws: radial_screw_object.ObjectRadialScrews) -> None:
         self.cls = cls
         self.object_radial_screws = object_radial_screws
 
-    def build_from_modifier(self, screw_mod_name=""):
+    def build_from_modifier(self, screw_mod_name: str = "") -> T | None:
         builder = ExistingRadialScrewBuilder
 
         context = self.object_radial_screws.context
@@ -329,13 +357,9 @@ class RadialScrewDirector:
         fix_nodes_mod(ob, screw_mod, nodes_mod)
         fix_axis_empty(ob, axis_empty)
 
-        return self.cls(self.object_radial_screws,
-                        radial_screw_name,
-                        screw_mod,
-                        nodes_mod,
-                        axis_empty)
+        return self.cls(self.object_radial_screws, radial_screw_name, screw_mod, nodes_mod, axis_empty)
 
-    def build_new(self):
+    def build_new(self) -> T:
         builder = NewRadialScrewBuilder()
 
         context = self.object_radial_screws.context
@@ -351,8 +375,4 @@ class RadialScrewDirector:
         fix_nodes_mod(ob, screw_mod, nodes_mod)
         fix_axis_empty(ob, axis_empty)
 
-        return self.cls(self.object_radial_screws,
-                        radial_screw_name,
-                        screw_mod,
-                        nodes_mod,
-                        axis_empty)
+        return self.cls(self.object_radial_screws, radial_screw_name, screw_mod, nodes_mod, axis_empty)

@@ -1,20 +1,27 @@
-def event_match_kmi(operator, event, idname: str, release: bool = False) -> bool:
+from typing import Any
+
+import bpy
+
+
+def is_event_match_kmi(operator: Any, event: bpy.types.Event, idname: str, release: bool = False) -> bool:
     """Return match between event type and keymap item type."""
     if release:
         return event.type == operator.keymap_items[idname].type
     else:
-        return (event.type == (kmi := operator.keymap_items[idname]).type
-                and event.alt == kmi.alt
-                and event.ctrl == kmi.ctrl
-                and event.shift == kmi.shift)
+        return (
+            event.type == (kmi := operator.keymap_items[idname]).type
+            and event.alt == kmi.alt
+            and event.ctrl == kmi.ctrl
+            and event.shift == kmi.shift
+        )
 
 
-def get_property_default(operator, idname):
+def get_property_default(operator: Any, idname: str) -> Any:
     op_properties = operator.properties.bl_rna.properties
     return op_properties[idname].default
 
 
-def event_type_to_digit(event_type):
+def event_type_to_digit(event_type: str) -> int:
     event_type_digit = {
         'ZERO': 0,
         'ONE': 1,
@@ -40,7 +47,7 @@ def event_type_to_digit(event_type):
     return event_type_digit[event_type]
 
 
-def event_type_is_digit(event_type):
+def event_type_is_digit(event_type: str) -> bool:
     digits = {
         'ZERO',
         'ONE',

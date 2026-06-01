@@ -1,37 +1,39 @@
+import math
+from typing import Any, Literal
+
 import blf
-from typing import TypeVar, Union, Any
-
-LEFT = TypeVar('LEFT')
-RIGHT = TypeVar('RIGHT')
+import bpy
 
 
-def get_text_block_dimensions(text_lines: list[list[tuple[str, Any]]],
-                              line_padding: int,
-                              font_id: int,
-                              font_size: int,
-                              dpi: int):
+def get_text_block_dimensions(
+    text_lines: list[list[tuple[str, Any]]],
+    line_padding: int,
+    font_id: int = 0,
+    font_size: int = 12,
+) -> tuple[int, int]:
     """Get dimensions of text lines."""
     blf.size(font_id, font_size)
 
-    text_block_height = (blf.dimensions(font_id, "M")[1]
-                         * (2 * len(text_lines) - 1)
-                         + (len(text_lines) - 1) * line_padding)
+    text_block_height = (
+        blf.dimensions(font_id, "M")[1] * (2 * len(text_lines) - 1) + (len(text_lines) - 1) * line_padding
+    )
     text_block_width = 0
     for text_line in text_lines:
         text_line_width = sum([blf.dimensions(font_id, text)[0] for text, _ in text_line])
         text_block_width = max(text_block_width, text_line_width)
 
-    return text_block_width, text_block_height
+    return math.ceil(text_block_width), math.ceil(text_block_height)
 
 
-def draw_text_block(text_lines: list[list[tuple[str, Any]]],
-                    align_x: int,
-                    top_y: int,
-                    line_padding: int,
-                    align: Union[LEFT, RIGHT],
-                    font_id: int = 0,
-                    font_size: int = 12,
-                    dpi: int = 0):
+def draw_text_block(
+    text_lines: list[list[tuple[str, Any]]],
+    align_x: int,
+    top_y: int,
+    line_padding: int,
+    align: Literal['LEFT', 'RIGHT'],
+    font_id: int = 0,
+    font_size: int = 12,
+) -> None:
     """Draw text lines from right top to bottom."""
     blf.size(font_id, font_size)
     blf.enable(font_id, blf.SHADOW)
@@ -63,7 +65,7 @@ def draw_text_block(text_lines: list[list[tuple[str, Any]]],
         text_y -= text_height
 
 
-def get_region_width(context):
+def get_region_width(context: bpy.types.Context) -> int:
     """Width of region that doesn't overlap with sidebar."""
     region_overlap = context.preferences.system.use_region_overlap
     sidebar_width = next((region.width for region in context.area.regions if region.type == 'UI'), 0)

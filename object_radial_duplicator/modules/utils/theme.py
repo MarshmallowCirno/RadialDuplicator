@@ -1,4 +1,10 @@
-def get_axis_color(context, spin_axis):
+from collections.abc import Sequence
+from typing import Literal
+
+import bpy
+
+
+def get_axis_color(context: bpy.types.Context, spin_axis: Literal['X', 'Y', 'Z']) -> Sequence[float]:
     """Get axis colors from blender theme."""
     theme = context.preferences.themes[0]
     axis_color = {
