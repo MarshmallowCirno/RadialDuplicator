@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING
 
 import bpy
 
-from ...base_classes.apply_base import ApplyModifierBase
-from ...radial_objects.radial_screw_object import ObjectRadialScrews
+from ...base_classes import apply_base
+from ...radial_objects import radial_screw_object
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
 
 
-class RADDUPLICATOR_OT_radial_screw_apply(bpy.types.Operator, ApplyModifierBase):
+class RADDUPLICATOR_OT_radial_screw_apply(bpy.types.Operator, apply_base.ApplyModifierBase):
     """Apply screw to the active object"""
 
     bl_idname = "radial_duplicator.screw_apply"
@@ -43,7 +43,7 @@ class RADDUPLICATOR_OT_radial_screw_apply(bpy.types.Operator, ApplyModifierBase)
         # From poll
         assert context.object is not None
 
-        radial_screws = ObjectRadialScrews(context, context.object)
+        radial_screws = radial_screw_object.ObjectRadialScrews(context, context.object)
         radial_screw = radial_screws.get_by_name(self.name)
         if radial_screw is None:
             self.report({'ERROR'}, "Not found")

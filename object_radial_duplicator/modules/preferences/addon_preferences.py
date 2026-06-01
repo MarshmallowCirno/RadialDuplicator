@@ -5,10 +5,9 @@ from typing import TYPE_CHECKING, Literal
 import bpy
 
 from ... import addon_info
-from ..keymap.modal_keymap import register_modal_keymap
-from ..keymap.ot_keymap import addon_ot_km_kmis
-from ..properties import AddonKeyMap, OverlayColors
-from ..ui.sidebar_ui import RADDUPLCIATOR_PT_sidebar
+from .. import properties
+from ..keymap import modal_keymap, ot_keymap
+from ..ui import sidebar_ui
 from ..utils import layout_draw_utils
 
 
@@ -16,11 +15,11 @@ def update_sidebar_category(self: RADDUPLICATOR_preferences, _):
     is_panel = hasattr(bpy.types, 'RADDUPLCIATOR_PT_sidebar')
     if is_panel:
         try:
-            bpy.utils.unregister_class(RADDUPLCIATOR_PT_sidebar)
+            bpy.utils.unregister_class(sidebar_ui.RADDUPLCIATOR_PT_sidebar)
         except:  # noqa
             pass
-    RADDUPLCIATOR_PT_sidebar.bl_category = self.sidebar_category
-    bpy.utils.register_class(RADDUPLCIATOR_PT_sidebar)
+    sidebar_ui.RADDUPLCIATOR_PT_sidebar.bl_category = self.sidebar_category
+    bpy.utils.register_class(sidebar_ui.RADDUPLCIATOR_PT_sidebar)
 
 
 def get_empties_collection(self: RADDUPLICATOR_preferences) -> str:
@@ -40,8 +39,8 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
 
     if TYPE_CHECKING:
         tabs: Literal['GENERAL', 'KEYMAP', 'COLORS']
-        keymaps: bpy.types.bpy_prop_collection_idprop[AddonKeyMap]
-        overlay_colors: OverlayColors
+        keymaps: bpy.types.bpy_prop_collection_idprop[properties.AddonKeyMap]
+        overlay_colors: properties.OverlayColors
         mouse_sensitivity: float
         use_wheelmouse: bool
         hide_sidebar: bool
@@ -60,8 +59,8 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
             default='GENERAL',
             options={'SKIP_SAVE'},
         )
-        keymaps: bpy.props.CollectionProperty(type=AddonKeyMap)
-        overlay_colors: bpy.props.PointerProperty(type=OverlayColors)
+        keymaps: bpy.props.CollectionProperty(type=properties.AddonKeyMap)
+        overlay_colors: bpy.props.PointerProperty(type=properties.OverlayColors)
 
         mouse_sensitivity: bpy.props.FloatProperty(
             name="Mouse Sensitivity",
@@ -136,19 +135,19 @@ class RADDUPLICATOR_preferences(bpy.types.AddonPreferences):
 
     def draw_keymap(self, box: bpy.types.UILayout) -> None:
         col = box.column()
-        keymap_items = [km_kmi[1] for km_kmi in addon_ot_km_kmis]
-        layout_draw.draw_keymap_items(
+        keymap_items = [km_kmi[1] for km_kmi in ot_keymap.addon_ot_km_kmis]
+        layout_draw_utils.draw_keymap_items(
             keymap_items=keymap_items, keymap_name="3D View", allow_removing=False, column=col
         )
 
         col = box.column()
         col.label(text="Modal Keymap")
         keymap_items = self.keymaps["modal"].keymap_items
-        layout_draw.draw_modal_keymap_items(keymap_items=keymap_items, tag="Default", column=col)
+        layout_draw_utils.draw_modal_keymap_items(keymap_items=keymap_items, tag="Default", column=col)
         col.separator()
-        layout_draw.draw_modal_keymap_items(keymap_items=keymap_items, tag="Mode", column=col)
+        layout_draw_utils.draw_modal_keymap_items(keymap_items=keymap_items, tag="Mode", column=col)
         col.separator()
-        layout_draw.draw_modal_keymap_items(keymap_items=keymap_items, tag="Reset", column=col)
+        layout_draw_utils.draw_modal_keymap_items(keymap_items=keymap_items, tag="Reset", column=col)
 
     def draw_colors(self, box: bpy.types.UILayout) -> None:
         col = box.column()
@@ -176,7 +175,7 @@ def register():
     for cls in classes:
         register_class(cls)
 
-    register_modal_keymap()
+    modal_keymap.register_modal_keymap()
 
 
 def unregister():

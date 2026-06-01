@@ -2,11 +2,11 @@ import re
 from typing import TYPE_CHECKING, TypeGuard, cast
 
 import bpy
+import mathutils
 import numpy as np
-from mathutils import Matrix, Vector
 
 from ... import properties
-from ..utils.object_utils import copy_collections, copy_local_view_state, get_modifier_index
+from ..utils import object_utils
 
 if TYPE_CHECKING:
     from . import radial_screw_object
@@ -138,8 +138,8 @@ def new_axis_empty(
     axis_empty = bpy.data.objects.new(name="ScrewEmpty", object_data=None)
     axis_empty.empty_display_type = 'SPHERE'
     axis_empty.empty_display_size = max(ob.dimensions[:]) / 2
-    copy_collections(ob, axis_empty)
-    copy_local_view_state(context, axis_empty)
+    object_utils.copy_collections(ob, axis_empty)
+    object_utils.copy_local_view_state(context, axis_empty)
     if ob.type != 'CURVE':
         # center_empty.hide_viewport = True
         axis_empty.parent = ob
@@ -163,7 +163,7 @@ def sort_screw_mod(ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier) -> 
     another_screw_mod = next(another_screw_mods, None)
     if another_screw_mod is not None:
         another_screw_mod_idx = ob.modifiers.find(another_screw_mod.name)
-        new_screw_mod_idx = get_modifier_index(
+        new_screw_mod_idx = object_utils.get_modifier_index(
             current_index=screw_mod_idx, reference_index=another_screw_mod_idx, position='AFTER'
         )
     else:
@@ -172,7 +172,7 @@ def sort_screw_mod(ob: bpy.types.Object, screw_mod: bpy.types.ScrewModifier) -> 
         mirror_mod = next(mirror_mods, None)
         if mirror_mod is not None:
             mirror_mod_idx = ob.modifiers.find(mirror_mod.name)
-            new_screw_mod_idx = get_modifier_index(
+            new_screw_mod_idx = object_utils.get_modifier_index(
                 current_index=screw_mod_idx, reference_index=mirror_mod_idx, position='AFTER'
             )
         else:
@@ -187,7 +187,7 @@ def sort_nodes_mod(
     """Place nodes modifier before screw modifier."""
     nodes_mod_idx = ob.modifiers.find(nodes_mod.name)
     screw_mod_idx = ob.modifiers.find(screw_mod.name)
-    new_nodes_mod_idx = get_modifier_index(
+    new_nodes_mod_idx = object_utils.get_modifier_index(
         current_index=nodes_mod_idx, reference_index=screw_mod_idx, position='BEFORE'
     )
     ob.modifiers.move(from_index=nodes_mod_idx, to_index=new_nodes_mod_idx)
@@ -229,7 +229,7 @@ def get_spin_axis(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> str:
     return spin_axis
 
 
-def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> Vector:
+def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> mathutils.Vector:
     """Calculate coordinate of pivot point of offset empty rotation and return it.
 
     Calculations are approximate and made by comparing the world space
@@ -237,9 +237,9 @@ def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> Vector
     Return one of the points lying on the spin axis.
     """
     transform_mx = offset_empty.matrix_world @ ob.matrix_world.inverted()
-    a = Matrix.Identity(3) - transform_mx.to_3x3().normalized()
+    a = mathutils.Matrix.Identity(3) - transform_mx.to_3x3().normalized()
     b = transform_mx.to_translation()
-    pivot_co = Vector(np.linalg.lstsq(a, b, rcond=None)[0])  # pyright: ignore[reportCallIssue, reportUnknownArgumentType, reportArgumentType]
+    pivot_co = mathutils.Vector(np.linalg.lstsq(a, b, rcond=None)[0])  # pyright: ignore[reportCallIssue, reportUnknownArgumentType, reportArgumentType]
     return pivot_co
 
 
@@ -268,7 +268,7 @@ def fix_axis_empty(ob: bpy.types.Object, axis_empty: bpy.types.Object | None) ->
     """Set correct axis empty collections."""
     if axis_empty is not None:
         if not axis_empty.users_collection:
-            copy_collections(ob, axis_empty)
+            object_utils.copy_collections(ob, axis_empty)
 
 
 class ExistingRadialScrewBuilder:

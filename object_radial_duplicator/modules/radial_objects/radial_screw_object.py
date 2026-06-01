@@ -3,19 +3,12 @@ from __future__ import annotations
 from typing import Literal, Self, cast
 
 import bpy
+import mathutils
 import numpy as np
-from mathutils import Euler, Matrix, Vector
 
 from .. import properties
-from ..radial_objects.radial_screw_builder import RadialScrewDirector, new_nodes_mod
-from ..utils.math_utils import get_axis_vec
-from ..utils.object_data_utils import get_mesh_center_co_world, get_mesh_selection_co_world
-from ..utils.object_utils import (
-    clear_children_parent_and_keep_mx,
-    get_normal_matrix,
-    set_children_parent_and_keep_mx,
-    set_origin,
-)
+from ..radial_objects import radial_screw_builder
+from ..utils import math_utils, object_data_utils, object_utils
 
 
 class ObjectRadialScrews:
@@ -66,11 +59,13 @@ class ObjectRadialScrews:
 class RadialScrew:
     @classmethod
     def from_modifier(cls, object_radial_screws: ObjectRadialScrews, screw_modifier_name: str = "") -> Self | None:
-        return RadialScrewDirector(cls, object_radial_screws).build_from_modifier(screw_modifier_name)
+        return radial_screw_builder.RadialScrewDirector(cls, object_radial_screws).build_from_modifier(
+            screw_modifier_name
+        )
 
     @classmethod
     def new(cls, object_radial_screws: ObjectRadialScrews) -> Self:
-        return RadialScrewDirector(cls, object_radial_screws).build_new()
+        return radial_screw_builder.RadialScrewDirector(cls, object_radial_screws).build_new()
 
     def __init__(
         self,
@@ -91,7 +86,7 @@ class RadialScrew:
         self.pivot_point = RadialScrewPivotPoint(self)
 
     @property
-    def spin_vec_object(self) -> Vector:
+    def spin_vec_object(self) -> mathutils.Vector:
         ob = self.object
         props = self.properties
 
@@ -102,7 +97,7 @@ class RadialScrew:
         # restored if object has been rotated since then.
         spin_orientation_matrix_world = ob.matrix_world @ props.value.spin_orientation_matrix_object
         spin_axis = props.value.spin_axis
-        spin_vec_world = get_axis_vec(spin_axis, spin_orientation_matrix_world)
+        spin_vec_world = math_utils.get_axis_vec(spin_axis, spin_orientation_matrix_world)
         spin_vec_object = spin_vec_world @ ob.matrix_world
 
         return spin_vec_object
@@ -118,7 +113,7 @@ class RadialScrew:
         screw_offset: float,
         iterations: int,
         pivot_point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY']
-        | Vector
+        | mathutils.Vector
         | None = None,
     ) -> None:
         """Spin radial screw and change pivot point.
@@ -150,7 +145,7 @@ class RadialScrew:
 
     def set_pivot_point(
         self,
-        point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector,
+        point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | mathutils.Vector,
     ) -> None:
         """Set pivot point and refresh radial screw.
 
@@ -195,7 +190,9 @@ class RadialScrewProps:
         assert props is not None
         return props
 
-    def _get_spin_orientation_matrix(self, spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL']) -> Matrix:
+    def _get_spin_orientation_matrix(
+        self, spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL']
+    ) -> mathutils.Matrix:
         """Get spin orientation matrix in world space.
 
         :param spin_orientation: Spin orientation in ['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL'].
@@ -204,10 +201,10 @@ class RadialScrewProps:
         ob = self._radial_screw.object
 
         return {
-            'GLOBAL': lambda: Matrix.Identity(4),
+            'GLOBAL': lambda: mathutils.Matrix.Identity(4),
             'LOCAL': lambda: ob.matrix_world.copy(),
             'VIEW': lambda: context.space_data.region_3d.view_matrix.inverted(),
-            'NORMAL': lambda: get_normal_matrix(context, ob),
+            'NORMAL': lambda: object_utils.get_normal_matrix(context, ob),
         }[spin_orientation]()
 
     def update(
@@ -295,7 +292,7 @@ class RadialScrewNodesMod:
         self.value = value
 
     @property
-    def displace_offset_vec_object(self) -> Vector:
+    def displace_offset_vec_object(self) -> mathutils.Vector:
         """Get displace vector in ob space."""
         ob = self._radial_screw.object
         props = self._radial_screw.properties.value
@@ -303,14 +300,14 @@ class RadialScrewNodesMod:
         spin_vec_object = self._radial_screw.spin_vec_object
 
         if props.radius_offset == 0:
-            return Vector((0, 0, 0))
+            return mathutils.Vector((0, 0, 0))
         else:
             pivot_mx = ob.matrix_world.copy()
             pivot_mx.translation = pivot_point_co
-            mesh_center_co_pivot = pivot_mx.inverted() @ get_mesh_center_co_world(ob)
+            mesh_center_co_pivot = pivot_mx.inverted() @ object_data_utils.get_mesh_center_co_world(ob)
 
             non_aligned_displace_vec = (
-                Vector((1, 1, 1)) if mesh_center_co_pivot.length_squared < 0.001 else mesh_center_co_pivot
+                mathutils.Vector((1, 1, 1)) if mesh_center_co_pivot.length_squared < 0.001 else mesh_center_co_pivot
             )
 
             projection = non_aligned_displace_vec.project(spin_vec_object)
@@ -320,15 +317,15 @@ class RadialScrewNodesMod:
             displace_offset_vec = aligned_displace_vec_local * props.radius_offset
             return displace_offset_vec
 
-    def _get_start_rotation_matrix(self) -> Euler:
+    def _get_start_rotation_matrix(self) -> mathutils.Euler:
         """Get object rotation to achieve radial screw starting rotation."""
         props = self._radial_screw.properties.value
         spin_vec_object = self._radial_screw.spin_vec_object
 
         return (
-            Euler((0, 0, 0))
+            mathutils.Euler((0, 0, 0))
             if props.start_angle == 0
-            else Matrix.Rotation(props.start_angle, 4, spin_vec_object[:]).to_euler()
+            else mathutils.Matrix.Rotation(props.start_angle, 4, spin_vec_object[:]).to_euler()
         )
 
     def refresh(self) -> None:
@@ -374,7 +371,7 @@ class RadialScrewNodesMod:
         screw_mod = self._radial_screw.screw_modifier.value
         props = self._radial_screw.properties.value
 
-        self.value = new_nodes_mod(ob, screw_mod, props, name)
+        self.value = radial_screw_builder.new_nodes_mod(ob, screw_mod, props, name)
 
     def apply(self) -> None:
         """Apply nodes modifier if it exists."""
@@ -412,16 +409,16 @@ class RadialScrewAxisEmpty:
 
         # Transform
         children = self.value.children
-        clear_children_parent_and_keep_mx(self.value)
+        object_utils.clear_children_parent_and_keep_mx(self.value)
 
         self.value.matrix_world = spin_orientation_matrix_world
         self.value.matrix_world.translation = pivot_point_co_world
 
-        set_children_parent_and_keep_mx(children, self.value)
+        object_utils.set_children_parent_and_keep_mx(children, self.value)
 
     def remove(self) -> None:
         """Remove offset empty."""
-        clear_children_parent_and_keep_mx(self.value)
+        object_utils.clear_children_parent_and_keep_mx(self.value)
         bpy.data.objects.remove(self.value, do_unlink=True)
 
 
@@ -430,15 +427,15 @@ class RadialScrewPivotPoint:
         self._radial_screw = radial_screw
 
     @property
-    def co_world(self) -> Vector:
+    def co_world(self) -> mathutils.Vector:
         """Get current pivot point coordinates."""
         axis_empty = self._radial_screw.axis_empty.value
 
         return axis_empty.matrix_world.to_translation()
 
     def _get_point_co_world(
-        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector
-    ) -> Vector:
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | mathutils.Vector
+    ) -> mathutils.Vector:
         """Get point coordinates.
 
         :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY', 'Vector'].
@@ -450,9 +447,9 @@ class RadialScrewPivotPoint:
         if point == 'ORIGIN':
             return ob.matrix_world.to_translation()
         elif point == 'CURSOR':
-            return Vector(context.scene.cursor.location.copy())
+            return mathutils.Vector(context.scene.cursor.location.copy())
         elif point == 'MESH_SELECTION':
-            return get_mesh_selection_co_world(context)
+            return object_data_utils.get_mesh_selection_co_world(context)
         elif point == 'ACTIVE_OBJECT':
             return context.view_layer.objects.active.matrix_world.to_translation()
         elif point == 'AXIS_EMPTY':
@@ -460,7 +457,9 @@ class RadialScrewPivotPoint:
         else:
             return point
 
-    def set(self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | Vector) -> None:
+    def set(
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY'] | mathutils.Vector
+    ) -> None:
         """Change pivot point location.
 
         :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'AXIS_EMPTY', 'Vector'].
@@ -477,9 +476,9 @@ class RadialScrewPivotPoint:
             else:
                 self._set_child_radial_screw_pivot_point(point_co)
         else:
-            set_origin(context, ob, point_co)
+            object_utils.set_origin(context, ob, point_co)
 
-    def _set_top_radial_screw_pivot_point(self, point_co: Vector) -> None:
+    def _set_top_radial_screw_pivot_point(self, point_co: mathutils.Vector) -> None:
         """Set object origin location keeping pivot points of object radial screws and refresh all radial screws."""
         context = self._radial_screw.context
         ob = self._radial_screw.object
@@ -487,14 +486,14 @@ class RadialScrewPivotPoint:
 
         if ob.parent == axis_empty:
             axis_empty.matrix_world.translation = point_co
-            set_origin(context, ob, point_co)
+            object_utils.set_origin(context, ob, point_co)
         else:
-            set_origin(context, ob, point_co)
+            object_utils.set_origin(context, ob, point_co)
             axis_empty.matrix_world.translation = point_co
 
         self._radial_screw.refresh()
 
-    def _set_child_radial_screw_pivot_point(self, point_co: Vector) -> None:
+    def _set_child_radial_screw_pivot_point(self, point_co: mathutils.Vector) -> None:
         """Set center empty location and refresh radial screw."""
         axis_empty = self._radial_screw.axis_empty.value
         axis_empty.matrix_world.translation = point_co

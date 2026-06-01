@@ -1,15 +1,13 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
-from math import radians
 from typing import TYPE_CHECKING, Literal, cast
 
 import bpy
 import mathutils
 
-from .radial_objects.radial_array_object import ObjectRadialArrays
-from .radial_objects.radial_duplicates_object import RadialDuplicates
-from .radial_objects.radial_screw_object import ObjectRadialScrews
+from .radial_objects import radial_array_object, radial_duplicates_object, radial_screw_object
 
 modal_key_items: list[tuple[str, str, str, int]] = []
 for i in cast(bpy.types.EnumProperty, bpy.types.Event.bl_rna.properties["type"]).enum_items.values():
@@ -19,7 +17,7 @@ for i in cast(bpy.types.EnumProperty, bpy.types.Event.bl_rna.properties["type"])
 
 def update_array(self: RadialArrayPropsGroup, context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
-    radial_arrays = ObjectRadialArrays(context, ob)
+    radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
     radial_array = radial_arrays.get_by_name(self.name)
     assert radial_array is not None
     radial_array.modify(
@@ -35,7 +33,7 @@ def update_array(self: RadialArrayPropsGroup, context: bpy.types.Context) -> Non
 
 def update_array_show_viewport(self: RadialArrayPropsGroup, context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
-    radial_arrays = ObjectRadialArrays(context, ob)
+    radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
     radial_array = radial_arrays.get_by_name(self.name)
     assert radial_array is not None
     array_modifier = radial_array.array_modifier.value
@@ -121,7 +119,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(0),
+            default=math.radians(0),
             update=update_array,
         )
         end_angle: bpy.props.FloatProperty(
@@ -131,7 +129,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(360),
+            default=math.radians(360),
             update=update_array,
         )
         height_offset: bpy.props.FloatProperty(
@@ -154,7 +152,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
 
 def update_screw(self: RadialScrewPropsGroup, context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
-    radial_screws = ObjectRadialScrews(context, ob)
+    radial_screws = radial_screw_object.ObjectRadialScrews(context, ob)
     radial_screw = radial_screws.get_by_name(self.name)
     assert radial_screw is not None
     radial_screw.modify(
@@ -171,7 +169,7 @@ def update_screw(self: RadialScrewPropsGroup, context: bpy.types.Context) -> Non
 
 def update_screw_show_viewport(self: RadialScrewPropsGroup, context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
-    radial_screws = ObjectRadialScrews(context, ob)
+    radial_screws = radial_screw_object.ObjectRadialScrews(context, ob)
     radial_screw = radial_screws.get_by_name(self.name)
     assert radial_screw is not None
     screw_modifier = radial_screw.screw_modifier.value
@@ -258,7 +256,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(0),
+            default=math.radians(0),
             update=update_screw,
         )
         end_angle: bpy.props.FloatProperty(
@@ -267,7 +265,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(360),
+            default=math.radians(360),
             update=update_screw,
         )
         screw_offset: bpy.props.FloatProperty(
@@ -294,7 +292,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
 
 
 def update_duplicates(self: RadialDuplicatesPropsGroup, context: bpy.types.Context) -> None:
-    radial_duplicate = RadialDuplicates.from_props(context, self)
+    radial_duplicate = radial_duplicates_object.RadialDuplicates.from_props(context, self)
     radial_duplicate.modify(
         self.spin_orientation,
         self.spin_axis,
@@ -307,7 +305,7 @@ def update_duplicates(self: RadialDuplicatesPropsGroup, context: bpy.types.Conte
 
 
 def update_duplicates_show_viewport(self: RadialDuplicatesPropsGroup, context: bpy.types.Context) -> None:
-    radial_duplicate = RadialDuplicates.from_props(context, self)
+    radial_duplicate = radial_duplicates_object.RadialDuplicates.from_props(context, self)
     dupli_obs = radial_duplicate.duplicated_objects.value
 
     for ob in dupli_obs:
@@ -385,7 +383,7 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(360),
+            default=math.radians(360),
             update=update_duplicates,
         )
         end_scale: bpy.props.FloatProperty(

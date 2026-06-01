@@ -4,7 +4,7 @@ from typing import cast
 
 import bpy
 
-from ...addon_info import get_preferences
+from ... import addon_info
 from .. import properties
 
 
@@ -33,7 +33,7 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
         layout = cast(bpy.types.UILayout, self.layout)
 
         col = layout.column(align=True)
-        if get_preferences().modal_buttons:
+        if addon_info.get_preferences().modal_buttons:
             col.operator("radial_duplicator.array_modal", text="Add Radial Array", icon='PHYSICS').from_button = True
             col.operator("radial_duplicator.screw_modal", text="Add Screw", icon='MOD_SCREW').from_button = True
             col.operator(

@@ -4,12 +4,12 @@ import re
 from typing import TYPE_CHECKING, TypeGuard, cast
 
 import bpy
+import mathutils
 import numpy as np
-from mathutils import Matrix, Vector
 
-from ...addon_info import get_preferences
+from ... import addon_info
 from .. import properties
-from ..utils.object_utils import copy_collections, copy_local_view_state, get_modifier_index, move_to_collection
+from ..utils import object_utils
 
 if TYPE_CHECKING:
     from . import radial_array_object
@@ -152,12 +152,12 @@ def new_center_empty(
     center_empty = bpy.data.objects.new(name="RadialArrayEmpty", object_data=None)
     center_empty.empty_display_type = 'SPHERE'
     center_empty.empty_display_size = max(ob.dimensions[:]) / 2
-    if get_preferences().move_empties_to_collection:
-        empties_collection = get_preferences().empties_collection
-        move_to_collection(empties_collection, center_empty)
+    if addon_info.get_preferences().move_empties_to_collection:
+        empties_collection = addon_info.get_preferences().empties_collection
+        object_utils.move_to_collection(empties_collection, center_empty)
     else:
-        copy_collections(ob, center_empty)
-        copy_local_view_state(context, center_empty)
+        object_utils.copy_collections(ob, center_empty)
+        object_utils.copy_local_view_state(context, center_empty)
     if ob.type != 'CURVE':
         # center_empty.hide_viewport = True
         center_empty.parent = ob
@@ -179,12 +179,12 @@ def new_offset_empty(
     offset_empty = bpy.data.objects.new(name="RadialArrayEmpty", object_data=None)
     offset_empty.empty_display_type = 'SPHERE'
     offset_empty.empty_display_size = max(ob.dimensions[:]) / 2
-    if get_preferences().move_empties_to_collection:
-        empties_collection = get_preferences().empties_collection
-        move_to_collection(empties_collection, offset_empty)
+    if addon_info.get_preferences().move_empties_to_collection:
+        empties_collection = addon_info.get_preferences().empties_collection
+        object_utils.move_to_collection(empties_collection, offset_empty)
     else:
-        copy_collections(ob, offset_empty)
-        copy_local_view_state(context, offset_empty)
+        object_utils.copy_collections(ob, offset_empty)
+        object_utils.copy_local_view_state(context, offset_empty)
     if ob.type != 'CURVE':
         # offset_empty.hide_viewport = True
         offset_empty.parent = ob
@@ -208,7 +208,7 @@ def sort_array_mod(ob: bpy.types.Object, array_mod: bpy.types.ArrayModifier) -> 
     another_array_mod = next(another_array_mods, None)
     if another_array_mod is not None:
         another_array_mod_idx = ob.modifiers.find(another_array_mod.name)
-        new_array_mod_idx = get_modifier_index(
+        new_array_mod_idx = object_utils.get_modifier_index(
             current_index=array_mod_idx, reference_index=another_array_mod_idx, position='AFTER'
         )
     else:
@@ -216,7 +216,7 @@ def sort_array_mod(ob: bpy.types.Object, array_mod: bpy.types.ArrayModifier) -> 
         screw_mod = next(screw_mods, None)
         if screw_mod is not None:
             screw_mod_idx = ob.modifiers.find(screw_mod.name)
-            new_array_mod_idx = get_modifier_index(
+            new_array_mod_idx = object_utils.get_modifier_index(
                 current_index=array_mod_idx, reference_index=screw_mod_idx, position='AFTER'
             )
         else:
@@ -225,7 +225,7 @@ def sort_array_mod(ob: bpy.types.Object, array_mod: bpy.types.ArrayModifier) -> 
             mirror_mod = next(mirror_mods, None)
             if mirror_mod is not None:
                 mirror_mod_idx = ob.modifiers.find(mirror_mod.name)
-                new_array_mod_idx = get_modifier_index(
+                new_array_mod_idx = object_utils.get_modifier_index(
                     current_index=array_mod_idx, reference_index=mirror_mod_idx, position='AFTER'
                 )
             else:
@@ -240,7 +240,7 @@ def sort_nodes_mod(
     """Place nodes modifier before array modifier."""
     nodes_mod_idx = ob.modifiers.find(nodes_mod.name)
     array_mod_idx = ob.modifiers.find(array_mod.name)
-    new_nodes_mod_idx = get_modifier_index(
+    new_nodes_mod_idx = object_utils.get_modifier_index(
         current_index=nodes_mod_idx, reference_index=array_mod_idx, position='BEFORE'
     )
     ob.modifiers.move(from_index=nodes_mod_idx, to_index=new_nodes_mod_idx)
@@ -279,7 +279,7 @@ def get_spin_axis(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> str:
     return spin_axis
 
 
-def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> Vector:
+def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> mathutils.Vector:
     """Calculate coordinate of pivot point of offset empty rotation and return it.
 
     Calculations are approximate and made by comparing the world space
@@ -287,9 +287,9 @@ def get_pivot_co(ob: bpy.types.Object, offset_empty: bpy.types.Object) -> Vector
     Return one of the points lying on the spin axis.
     """
     transform_mx = offset_empty.matrix_world @ ob.matrix_world.inverted()
-    a = Matrix.Identity(3) - transform_mx.to_3x3().normalized()
+    a = mathutils.Matrix.Identity(3) - transform_mx.to_3x3().normalized()
     b = transform_mx.to_translation()
-    pivot_co = Vector(np.linalg.lstsq(a, b, rcond=None)[0])  # pyright: ignore[reportCallIssue, reportArgumentType, reportUnknownArgumentType]
+    pivot_co = mathutils.Vector(np.linalg.lstsq(a, b, rcond=None)[0])  # pyright: ignore[reportCallIssue, reportArgumentType, reportUnknownArgumentType]
     return pivot_co
 
 
@@ -318,22 +318,22 @@ def fix_center_empty(ob: bpy.types.Object, center_empty: bpy.types.Object | None
     """Set correct center empty collections."""
     if center_empty is not None:
         if not center_empty.users_collection:
-            if get_preferences().move_empties_to_collection:
-                empties_collection = get_preferences().empties_collection
-                move_to_collection(empties_collection, center_empty)
+            if addon_info.get_preferences().move_empties_to_collection:
+                empties_collection = addon_info.get_preferences().empties_collection
+                object_utils.move_to_collection(empties_collection, center_empty)
             else:
-                copy_collections(ob, center_empty)
+                object_utils.copy_collections(ob, center_empty)
 
 
 def fix_offset_empty(ob: bpy.types.Object, offset_empty: bpy.types.Object | None) -> None:
     """Set correct offset empty collections."""
     if offset_empty is not None:
         if not offset_empty.users_collection:
-            if get_preferences().move_empties_to_collection:
-                empties_collection = get_preferences().empties_collection
-                move_to_collection(empties_collection, offset_empty)
+            if addon_info.get_preferences().move_empties_to_collection:
+                empties_collection = addon_info.get_preferences().empties_collection
+                object_utils.move_to_collection(empties_collection, offset_empty)
             else:
-                copy_collections(ob, offset_empty)
+                object_utils.copy_collections(ob, offset_empty)
 
 
 class ExistingRadialArrayBuilder:

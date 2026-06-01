@@ -2,11 +2,11 @@ from typing import Any
 
 import bmesh
 import bpy
+import mathutils
 import numpy as np
-from mathutils import Vector
 
 
-def get_mesh_selection_co_world(context: bpy.types.Context) -> Vector:
+def get_mesh_selection_co_world(context: bpy.types.Context) -> mathutils.Vector:
     """Get median coordinate of mesh selection."""
     bak_cursor_loc = context.scene.cursor.location.copy()
     bpy.ops.view3d.snap_cursor_to_selected()
@@ -56,7 +56,7 @@ def curve_is_selected(curve: bpy.types.Curve) -> bool:
     return bool(np.any(total_selection_flat))
 
 
-def get_data_center_co_world(ob: bpy.types.Object) -> Vector:
+def get_data_center_co_world(ob: bpy.types.Object) -> mathutils.Vector:
     """Get world space coordinates of object data center."""
     assert isinstance(ob.data, bpy.types.Mesh | bpy.types.Curve)
     match ob.data:
@@ -66,7 +66,7 @@ def get_data_center_co_world(ob: bpy.types.Object) -> Vector:
             return get_curve_center_co_world(ob)
 
 
-def get_mesh_center_co_world(ob: bpy.types.Object) -> Vector:
+def get_mesh_center_co_world(ob: bpy.types.Object) -> mathutils.Vector:
     """Get world space coordinates of mesh center."""
     me = ob.data
     assert isinstance(me, bpy.types.Mesh)
@@ -81,13 +81,13 @@ def get_mesh_center_co_world(ob: bpy.types.Object) -> Vector:
         amin = np.amin(vert_co_local, axis=0)
 
         center_co_local = (amax + amin) / 2
-        center_co = ob.matrix_world @ Vector(center_co_local)
+        center_co = ob.matrix_world @ mathutils.Vector(center_co_local)
     else:
         center_co = ob.matrix_world.to_translation()
     return center_co
 
 
-def get_curve_center_co_world(ob: bpy.types.Object) -> Vector:
+def get_curve_center_co_world(ob: bpy.types.Object) -> mathutils.Vector:
     """Get world space coordinates of curve center."""
     curve = ob.data
     assert isinstance(curve, bpy.types.Curve)
@@ -123,7 +123,7 @@ def get_curve_center_co_world(ob: bpy.types.Object) -> Vector:
         amin = np.amin(points_co_flat, axis=0)
 
         center_co_local = (amax + amin) / 2
-        center_co = ob.matrix_world @ Vector(center_co_local)
+        center_co = ob.matrix_world @ mathutils.Vector(center_co_local)
     else:
         center_co = ob.matrix_world.to_translation()
     return center_co

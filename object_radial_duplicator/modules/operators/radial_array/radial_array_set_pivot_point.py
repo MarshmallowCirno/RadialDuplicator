@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Literal
 
 import bpy
 
-from ...radial_objects.radial_array_object import ObjectRadialArrays
+from ...radial_objects import radial_array_object
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -59,7 +59,7 @@ class RADDUPLCIATOR_OT_radial_array_set_pivot_point(bpy.types.Operator):
         # From poll
         assert context.object is not None
 
-        radial_arrays = ObjectRadialArrays(context, context.object)
+        radial_arrays = radial_array_object.ObjectRadialArrays(context, context.object)
         radial_array = radial_arrays.get_by_name(self.name)
         if radial_array is None:
             self.report({'ERROR'}, "Not found")

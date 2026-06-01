@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal, cast
 import bpy
 
 from ... import properties
-from ...radial_objects.radial_duplicates_object import RadialDuplicates
+from ...radial_objects import radial_duplicates_object
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -66,7 +66,7 @@ class RADDUPLCIATOR_OT_radial_duplicates_set_pivot_point(bpy.types.Operator):
 
         props_collection = cast(properties.RadialCollections, center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
         props = props_collection.duplicates[0]
-        radial_duplicates = RadialDuplicates.from_props(context, props)
+        radial_duplicates = radial_duplicates_object.RadialDuplicates.from_props(context, props)
         radial_duplicates.set_pivot_point(self.pivot_point)
         return {'FINISHED'}
 

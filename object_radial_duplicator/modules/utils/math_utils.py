@@ -1,23 +1,23 @@
 from typing import Literal
 
+import mathutils
 import numpy as np
-from mathutils import Matrix, Vector
 
 
-def get_axis_vec(axis: str, matrix: Matrix) -> Vector:
+def get_axis_vec(axis: str, matrix: mathutils.Matrix) -> mathutils.Vector:
     """Get axis vector from matrix.
 
     :param axis: Axis in ['X', 'Y', 'Z']
     :param matrix: Matrix
     """
     return {
-        'X': Vector((matrix[0][0], matrix[1][0], matrix[2][0])),
-        'Y': Vector((matrix[0][1], matrix[1][1], matrix[2][1])),
-        'Z': Vector((matrix[0][2], matrix[1][2], matrix[2][2])),
+        'X': mathutils.Vector((matrix[0][0], matrix[1][0], matrix[2][0])),
+        'Y': mathutils.Vector((matrix[0][1], matrix[1][1], matrix[2][1])),
+        'Z': mathutils.Vector((matrix[0][2], matrix[1][2], matrix[2][2])),
     }[axis]
 
 
-def flatten_vec(vec: Vector, axis: str) -> Vector:
+def flatten_vec(vec: mathutils.Vector, axis: str) -> mathutils.Vector:
     """Flatten vector in axis direction.
 
     :param vec: Vector

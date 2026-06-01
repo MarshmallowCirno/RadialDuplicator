@@ -1,27 +1,29 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
-from math import ceil, degrees, radians
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import bpy
 import gpu
 import gpu_extras
+import mathutils
 import numpy as np
-from mathutils import Matrix, Vector
 
-from ....addon_info import get_preferences
+from .... import addon_info
 from ... import properties
-from ...preferences.addon_preferences import RADDUPLICATOR_preferences
+from ...preferences import addon_preferences
 from ...radial_objects import radial_array_object
-from ...utils.gpu_draw_utils import draw_bg
-from ...utils.math_utils import build_circle, flatten_vec, get_axis_vec
-from ...utils.modal_utils import event_type_is_digit, event_type_to_digit, get_property_default, is_event_match_kmi
-from ...utils.object_data_utils import get_data_center_co_world, is_data_selected
-from ...utils.scene_utils import get_unit
-from ...utils.text_utils import draw_text_block, get_text_block_dimensions
-from ...utils.theme_utils import get_axis_color
-from ...utils.view3d_utils import get_non_overlap_width, hide_sidebar, restore_sidebar
+from ...utils import (
+    gpu_draw_utils,
+    math_utils,
+    modal_utils,
+    object_data_utils,
+    scene_utils,
+    text_utils,
+    theme_utils,
+    view3d_utils,
+)
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -104,7 +106,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(0),
+            default=math.radians(0),
             options={'SKIP_SAVE'},
         )
         end_angle: bpy.props.FloatProperty(
@@ -113,7 +115,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(360),
+            default=math.radians(360),
             options={'SKIP_SAVE'},
         )
         height_offset: bpy.props.FloatProperty(
@@ -181,7 +183,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             radial_array_object.RadialArray
         ] = []  # class from top radial arrays of slave_obs
 
-        self.preferences: RADDUPLICATOR_preferences = get_preferences()
+        self.preferences: addon_preferences.RADDUPLICATOR_preferences = addon_info.get_preferences()
         self.keymap_items: bpy.types.bpy_prop_collection_idprop[properties.ModalKeyMapItem] = self.preferences.keymaps[
             "modal"
         ].keymap_items
@@ -237,7 +239,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         # Set blender UI
         self.redraw_status(context)
         self.redraw_header(context)
-        hide_sidebar(context)
+        view3d_utils.hide_sidebar(context)
 
         # Set shaders
         self.build_3d_shader_batches()
@@ -400,7 +402,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         assert context.object is not None
         assert isinstance(context.object.data, bpy.types.Mesh | bpy.types.Curve)
 
-        if context.object.mode == 'EDIT' and is_data_selected(context.object.data):
+        if context.object.mode == 'EDIT' and object_data_utils.is_data_selected(context.object.data):
             self.spin_orientation = 'NORMAL'
             self.pivot_point = 'MESH_SELECTION'
 
@@ -437,7 +439,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
     def get_pivot_point(
         self, radial_array: radial_array_object.RadialArray
-    ) -> Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | Vector | None:
+    ) -> Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector | None:
         """Get pivot point value taking into account changes of object origin. Allows toggling between stored initial
         pivot point."""
         last_set_pivot_point = self.radial_array_last_set_pivot_points.get(radial_array)
@@ -510,7 +512,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                     and context.scene.tool_settings.snap_elements == 'INCREMENT'
                     and not event.ctrl
                 ):
-                    rounded = radians(round(degrees(self.start_angle_float) / 10) * 10)
+                    rounded = math.radians(round(math.degrees(self.start_angle_float) / 10) * 10)
                     if self.start_angle != rounded:
                         self.start_angle = rounded
                         self.modify_all_radial_arrays()
@@ -532,7 +534,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                     and context.scene.tool_settings.snap_elements == 'INCREMENT'
                     and not event.ctrl
                 ):
-                    rounded = radians(round(degrees(self.end_angle_float) / 10) * 10)
+                    rounded = math.radians(round(math.degrees(self.end_angle_float) / 10) * 10)
                     if self.end_angle != rounded:
                         self.end_angle = rounded
                         self.modify_all_radial_arrays()
@@ -596,8 +598,8 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 else:
                     return {'PASS_THROUGH'}
 
-            elif event_type_is_digit(event.type):
-                digit = event_type_to_digit(event.type)
+            elif modal_utils.event_type_is_digit(event.type):
+                digit = modal_utils.event_type_to_digit(event.type)
                 if self.typed_string is None:
                     if digit != 0:
                         self.count_before_typing = self.count
@@ -622,7 +624,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                         self.modify_all_radial_arrays()
                     self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "spin_orientation"):
+            elif modal_utils.is_event_match_kmi(self, event, "spin_orientation"):
                 if context.mode == 'OBJECT':
                     match self.spin_orientation:
                         case 'GLOBAL':
@@ -648,7 +650,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "spin_axis"):
+            elif modal_utils.is_event_match_kmi(self, event, "spin_axis"):
                 match self.spin_axis:
                     case 'X':
                         self.spin_axis = 'Y'
@@ -661,92 +663,92 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "x_axis"):
+            elif modal_utils.is_event_match_kmi(self, event, "x_axis"):
                 self.spin_axis = 'X'
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "y_axis"):
+            elif modal_utils.is_event_match_kmi(self, event, "y_axis"):
                 self.spin_axis = 'Y'
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "z_axis"):
+            elif modal_utils.is_event_match_kmi(self, event, "z_axis"):
                 self.spin_axis = 'Z'
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
                 self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "pivot_point"):
+            elif modal_utils.is_event_match_kmi(self, event, "pivot_point"):
                 self.set_next_pivot_point(context)
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif is_event_match_kmi(self, event, "count_changing"):
+            elif modal_utils.is_event_match_kmi(self, event, "count_changing"):
                 self.cancel_typing(context)
                 self.count_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif is_event_match_kmi(self, event, "radius_offset_changing") and context.object.type == 'MESH':
+            elif modal_utils.is_event_match_kmi(self, event, "radius_offset_changing") and context.object.type == 'MESH':
                 self.radius_offset_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif is_event_match_kmi(self, event, "start_angle_changing"):
+            elif modal_utils.is_event_match_kmi(self, event, "start_angle_changing"):
                 self.start_angle_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif is_event_match_kmi(self, event, "end_angle_changing"):
+            elif modal_utils.is_event_match_kmi(self, event, "end_angle_changing"):
                 self.end_angle_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif is_event_match_kmi(self, event, "height_offset_changing"):
+            elif modal_utils.is_event_match_kmi(self, event, "height_offset_changing"):
                 self.height_offset_changing = True
                 context.window.cursor_modal_set('MOVE_X')
 
-            elif is_event_match_kmi(self, event, "reset_count"):
-                self.count = self.count_float = get_property_default(self, "count")
+            elif modal_utils.is_event_match_kmi(self, event, "reset_count"):
+                self.count = self.count_float = modal_utils.get_property_default(self, "count")
                 self.modify_all_radial_arrays()
                 self.redraw_header(context)
 
-            elif is_event_match_kmi(self, event, "reset_radius_offset"):
-                self.radius_offset = self.radius_offset_float = get_property_default(self, "radius_offset")
+            elif modal_utils.is_event_match_kmi(self, event, "reset_radius_offset"):
+                self.radius_offset = self.radius_offset_float = modal_utils.get_property_default(self, "radius_offset")
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif is_event_match_kmi(self, event, "reset_start_angle"):
-                self.start_angle = self.start_angle_float = get_property_default(self, "start_angle")
+            elif modal_utils.is_event_match_kmi(self, event, "reset_start_angle"):
+                self.start_angle = self.start_angle_float = modal_utils.get_property_default(self, "start_angle")
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif is_event_match_kmi(self, event, "reset_end_angle"):
-                self.end_angle = self.end_angle_float = get_property_default(self, "end_angle")
+            elif modal_utils.is_event_match_kmi(self, event, "reset_end_angle"):
+                self.end_angle = self.end_angle_float = modal_utils.get_property_default(self, "end_angle")
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif is_event_match_kmi(self, event, "reset_height_offset"):
-                self.height_offset = self.height_offset_float = get_property_default(self, "height_offset")
+            elif modal_utils.is_event_match_kmi(self, event, "reset_height_offset"):
+                self.height_offset = self.height_offset_float = modal_utils.get_property_default(self, "height_offset")
                 self.modify_all_radial_arrays()
                 self.build_3d_shader_batches()
                 context.region.tag_redraw()
 
-            elif is_event_match_kmi(self, event, "add"):
+            elif modal_utils.is_event_match_kmi(self, event, "add"):
                 self.add_radial_arrays(context)
 
-            elif is_event_match_kmi(self, event, "apply") and context.object.type == 'MESH':
+            elif modal_utils.is_event_match_kmi(self, event, "apply") and context.object.type == 'MESH':
                 self.apply_active_radial_arrays()
                 self.finish_modal(context)
                 return {'FINISHED'}
 
-            elif is_event_match_kmi(self, event, "remove"):
+            elif modal_utils.is_event_match_kmi(self, event, "remove"):
                 self.remove_active_radial_arrays()
                 self.finish_modal(context)
                 return {'FINISHED'}
@@ -761,24 +763,24 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 return {'FINISHED'}
 
         elif event.value == 'RELEASE':
-            if is_event_match_kmi(self, event, "count_changing", release=True):
+            if modal_utils.is_event_match_kmi(self, event, "count_changing", release=True):
                 self.cancel_typing(context)
                 self.count_changing = False
                 context.window.cursor_modal_restore()
 
-            elif is_event_match_kmi(self, event, "radius_offset_changing", release=True):
+            elif modal_utils.is_event_match_kmi(self, event, "radius_offset_changing", release=True):
                 self.radius_offset_changing = False
                 context.window.cursor_modal_restore()
 
-            elif is_event_match_kmi(self, event, "start_angle_changing", release=True):
+            elif modal_utils.is_event_match_kmi(self, event, "start_angle_changing", release=True):
                 self.start_angle_changing = False
                 context.window.cursor_modal_restore()
 
-            elif is_event_match_kmi(self, event, "end_angle_changing", release=True):
+            elif modal_utils.is_event_match_kmi(self, event, "end_angle_changing", release=True):
                 self.end_angle_changing = False
                 context.window.cursor_modal_restore()
 
-            elif is_event_match_kmi(self, event, "height_offset_changing", release=True):
+            elif modal_utils.is_event_match_kmi(self, event, "height_offset_changing", release=True):
                 self.height_offset_changing = False
                 context.window.cursor_modal_restore()
 
@@ -936,7 +938,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
     def finish_modal(self, context: bpy.types.Context) -> None:
         """Remove status, header, sidebar, cursor, shaders."""
-        restore_sidebar(context, self.sidebar_initial_state)
+        view3d_utils.restore_sidebar(context, self.sidebar_initial_state)
         context.area.header_text_set(text=None)
         context.workspace.status_text_set(text=None)
         context.window.cursor_modal_restore()
@@ -994,7 +996,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
         ui_scale = context.preferences.view.ui_scale
         op_properties = self.properties.bl_rna.properties
-        unit = get_unit(context)
+        unit = scene_utils.get_unit(context)
 
         # Colors
         main_color = self.preferences.overlay_colors.main
@@ -1024,10 +1026,10 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         radius_offset = round(self.radius_offset, 2)
 
         start_angle_key = self.keymap_items["start_angle_changing"].type
-        start_angle = round(degrees(self.start_angle), 2)
+        start_angle = round(math.degrees(self.start_angle), 2)
 
         end_angle_key = self.keymap_items["end_angle_changing"].type
-        end_angle = round(degrees(self.end_angle), 2)
+        end_angle = round(math.degrees(self.end_angle), 2)
 
         height_offset_key = self.keymap_items["height_offset_changing"].type
         height_offset = round(self.height_offset, 2)
@@ -1122,21 +1124,21 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         offset_x, offset_y = 100, 100  # offset of overlay box from 3d view borders
 
         # Calculate text dimensions
-        props_text_block_width, props_text_block_height = get_text_block_dimensions(
+        props_text_block_width, props_text_block_height = text_utils.get_text_block_dimensions(
             props_text_lines, line_padding, font_id, font_size
         )
-        name_text_block_width, name_text_block_height = get_text_block_dimensions(
+        name_text_block_width, name_text_block_height = text_utils.get_text_block_dimensions(
             name_text_lines, line_padding, font_id, font_size
         )
 
         # Calculate text coordinates
-        props_text_block_x_right = get_non_overlap_width(context) - offset_x
+        props_text_block_x_right = view3d_utils.get_non_overlap_width(context) - offset_x
         props_text_block_x_left = props_text_block_x_right - max(props_text_block_width, name_text_block_width)
         props_text_block_y_bottom = offset_y
         props_text_block_y_top = props_text_block_y_bottom + props_text_block_height
 
         # Draw
-        draw_bg(
+        gpu_draw_utils.draw_bg(
             shader_2d,
             props_text_block_x_right,
             props_text_block_y_bottom,
@@ -1146,7 +1148,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             bg_color,
         )
 
-        draw_text_block(
+        text_utils.draw_text_block(
             props_text_lines,
             props_text_block_x_left,
             props_text_block_y_top,
@@ -1164,7 +1166,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             name_text_block_y_top = name_text_block_y_bottom + name_text_block_height
 
             # Draw
-            draw_bg(
+            gpu_draw_utils.draw_bg(
                 shader_2d,
                 name_text_block_x_right,
                 name_text_block_y_bottom,
@@ -1174,7 +1176,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
                 bg_color,
             )
 
-            draw_text_block(
+            text_utils.draw_text_block(
                 name_text_lines,
                 name_text_block_x_left,
                 name_text_block_y_top,
@@ -1195,18 +1197,18 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         pivot_point_co_world = self.master_radial_array.pivot_point.co_world
         spin_orientation_matrix_world = self.master_ob.matrix_world @ props.spin_orientation_matrix_object
         spin_orientation_matrix_world.translation = pivot_point_co_world
-        spin_vec_world = get_axis_vec(self.spin_axis, spin_orientation_matrix_world)
+        spin_vec_world = math_utils.get_axis_vec(self.spin_axis, spin_orientation_matrix_world)
 
         spin_vec_spin = spin_vec_world @ spin_orientation_matrix_world
         def_radius = 5
 
-        data_center_co_world = get_data_center_co_world(self.master_ob)
+        data_center_co_world = object_data_utils.get_data_center_co_world(self.master_ob)
         data_center_vec_spin = spin_orientation_matrix_world.inverted() @ data_center_co_world
-        data_center_flat_vec_spin = flatten_vec(data_center_vec_spin, self.spin_axis)
+        data_center_flat_vec_spin = math_utils.flatten_vec(data_center_vec_spin, self.spin_axis)
 
         # Radius vector of 1 unit length
         if data_center_flat_vec_spin.length < 0.001:
-            direction_base_vec_spin = flatten_vec(Vector((1, 1, 1)), self.spin_axis).normalized()
+            direction_base_vec_spin = math_utils.flatten_vec(mathutils.Vector((1, 1, 1)), self.spin_axis).normalized()
         else:
             direction_base_vec_spin = data_center_flat_vec_spin.normalized()
 
@@ -1225,10 +1227,10 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
         # Compose axis circle matrix
         if self.spin_axis == 'X':
-            rot_matrix = Matrix([(0, 0, 1), (0, 1, 0), (1, 0, 0)])
+            rot_matrix = mathutils.Matrix([(0, 0, 1), (0, 1, 0), (1, 0, 0)])
             axis_circle_matrix_world = spin_orientation_matrix_world @ rot_matrix.to_4x4()
         elif self.spin_axis == 'Y':
-            rot_matrix = Matrix([(1, 0, 0), (0, 0, 1), (0, 1, 0)])
+            rot_matrix = mathutils.Matrix([(1, 0, 0), (0, 0, 1), (0, 1, 0)])
             axis_circle_matrix_world = spin_orientation_matrix_world @ rot_matrix.to_4x4()
         elif self.spin_axis == 'Z':
             axis_circle_matrix_world = spin_orientation_matrix_world
@@ -1236,7 +1238,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             raise ValueError("spin_axis is invalid")
 
         # Get axis circle vertices co in local space
-        axis_circle_vertices = build_circle(axis_circle_radius, 40)
+        axis_circle_vertices = math_utils.build_circle(axis_circle_radius, 40)
 
         # Convert axis circle vertices co to world space
         axis_circle_matrix_world_np = np.array(axis_circle_matrix_world)
@@ -1257,11 +1259,11 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             or self.end_angle != cast(bpy.types.FloatProperty, op_properties["end_angle"]).default
         ):
             # Build angle lines batch
-            start_rot_matrix = Matrix.Rotation(self.start_angle, 4, spin_vec_spin[:])
+            start_rot_matrix = mathutils.Matrix.Rotation(self.start_angle, 4, spin_vec_spin[:])
             start_angle_co_spin = start_rot_matrix @ radius_vec_spin
             start_angle_co_world = spin_orientation_matrix_world @ start_angle_co_spin
 
-            end_rot_matrix = Matrix.Rotation(self.end_angle, 4, spin_vec_spin[:])
+            end_rot_matrix = mathutils.Matrix.Rotation(self.end_angle, 4, spin_vec_spin[:])
             end_angle_co_spin = end_rot_matrix @ radius_vec_spin
             end_angle_co_world = spin_orientation_matrix_world @ end_angle_co_spin
 
@@ -1279,7 +1281,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
             )
 
             # Build angle fill batch
-            step_count = int(ceil(abs((self.end_angle - self.start_angle) / radians(5))))
+            step_count = int(math.ceil(abs((self.end_angle - self.start_angle) / math.radians(5))))
             if step_count == 0:
                 step_angle = 0
             else:
@@ -1287,7 +1289,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
             fill_vertices = [pivot_point_co_world[:]]
             for i in range(step_count + 1):
-                step_rot_matrix = Matrix.Rotation(step_angle * i, 4, spin_vec_spin[:])
+                step_rot_matrix = mathutils.Matrix.Rotation(step_angle * i, 4, spin_vec_spin[:])
                 step_co_spin = step_rot_matrix @ start_angle_co_spin
                 step_co_world = spin_orientation_matrix_world @ step_co_spin
                 fill_vertices.append(step_co_world[:])
@@ -1306,7 +1308,7 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
         assert self.angle_lines_batch is not None
         assert self.angle_fill_batch is not None
 
-        axis_color = get_axis_color(context, self.spin_axis)
+        axis_color = theme_utils.get_axis_color(context, self.spin_axis)
 
         shader_3d.bind()
         shader_3d.uniform_float("color", axis_color)

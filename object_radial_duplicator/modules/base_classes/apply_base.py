@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import bpy
 
-from ..utils.multiuser_data_changer import MultiuserDataChanger
+from ..utils import multiuser_data_changer
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -27,7 +27,7 @@ class ApplyModifierBase:
     bl_idname: str = NotImplemented
     name: str = NotImplemented
 
-    def invoke(self, context: bpy.types.Context, _event: bpy.types.Event) -> set["OperatorReturnItems"]:
+    def invoke(self, context: bpy.types.Context, _event: bpy.types.Event) -> set[OperatorReturnItems]:
         ob = context.object
         assert ob is not None
         assert ob.data is not None
@@ -40,21 +40,21 @@ class ApplyModifierBase:
         else:
             return self.execute(context)
 
-    def execute(self, context: bpy.types.Context) -> set["OperatorReturnItems"]:
+    def execute(self, context: bpy.types.Context) -> set[OperatorReturnItems]:
         ob = context.object
         assert ob is not None
         assert ob.data is not None
 
         ob_is_multiuser = ob.data.users > 1
 
-        multiuser_data_changer = MultiuserDataChanger(ob)
+        data_changer = multiuser_data_changer.MultiuserDataChanger(ob)
         if ob_is_multiuser and self.multiuser_data_apply_method != 'NONE':
-            multiuser_data_changer.make_object_data_single_user()
+            data_changer.make_object_data_single_user()
 
         self.apply(context)
 
         if ob_is_multiuser and self.multiuser_data_apply_method == 'APPLY_TO_ALL':
-            multiuser_data_changer.link_new_object_data_to_instances()
+            data_changer.link_new_object_data_to_instances()
         return {'FINISHED'}
 
     def apply(self, _context: bpy.types.Context) -> Any:

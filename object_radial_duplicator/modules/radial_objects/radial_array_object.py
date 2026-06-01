@@ -1,22 +1,15 @@
 from __future__ import annotations
 
-from math import radians
+import math
 from typing import Literal, Self, cast
 
 import bpy
+import mathutils
 import numpy as np
-from mathutils import Euler, Matrix, Vector
 
 from .. import properties
-from ..radial_objects.radial_array_builder import RadialArrayDirector, new_center_empty, new_nodes_mod
-from ..utils.math_utils import get_axis_vec
-from ..utils.object_data_utils import get_data_center_co_world, get_mesh_selection_co_world
-from ..utils.object_utils import (
-    clear_children_parent_and_keep_mx,
-    get_normal_matrix,
-    set_children_parent_and_keep_mx,
-    set_origin,
-)
+from ..radial_objects import radial_array_builder
+from ..utils import math_utils, object_data_utils, object_utils
 
 
 class ObjectRadialArrays:
@@ -80,18 +73,20 @@ class ObjectRadialArrays:
                 co = center_empty.matrix_world.to_translation()
                 radial_array.center_empty.remove()
                 self.ensure_center_empties_of_child_radial_arrays()
-                set_origin(context, ob, co)
+                object_utils.set_origin(context, ob, co)
                 self.refresh_all()
 
 
 class RadialArray:
     @classmethod
     def from_modifier(cls, object_radial_arrays: ObjectRadialArrays, array_modifier_name: str = "") -> Self | None:
-        return RadialArrayDirector(cls, object_radial_arrays).build_from_modifier(array_modifier_name)
+        return radial_array_builder.RadialArrayDirector(cls, object_radial_arrays).build_from_modifier(
+            array_modifier_name
+        )
 
     @classmethod
     def new(cls, object_radial_arrays: ObjectRadialArrays) -> Self:
-        return RadialArrayDirector(cls, object_radial_arrays).build_new()
+        return radial_array_builder.RadialArrayDirector(cls, object_radial_arrays).build_new()
 
     def __init__(
         self,
@@ -114,7 +109,7 @@ class RadialArray:
         self.pivot_point = RadialArrayPivotPoint(self)
 
     @property
-    def spin_vec_object(self) -> Vector:
+    def spin_vec_object(self) -> mathutils.Vector:
         ob = self.object
         props = self.properties
 
@@ -125,7 +120,7 @@ class RadialArray:
         # restored if object has been rotated since then.
         spin_orientation_matrix_world = ob.matrix_world @ props.value.spin_orientation_matrix_object
         spin_axis = props.value.spin_axis
-        spin_vec_world = get_axis_vec(spin_axis, spin_orientation_matrix_world)
+        spin_vec_world = math_utils.get_axis_vec(spin_axis, spin_orientation_matrix_world)
         spin_vec_object = spin_vec_world @ ob.matrix_world
 
         return spin_vec_object
@@ -140,7 +135,7 @@ class RadialArray:
         end_angle: float,
         height_offset: float,
         pivot_point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY']
-        | Vector
+        | mathutils.Vector
         | None = None,
     ) -> None:
         """Spin radial array and change pivot point.
@@ -169,7 +164,7 @@ class RadialArray:
         self.offset_empty.refresh()
 
     def set_pivot_point(
-        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | Vector
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector
     ) -> None:
         """Set pivot point and refresh radial array.
 
@@ -216,7 +211,9 @@ class RadialArrayProps:
         assert props is not None
         return props
 
-    def _get_spin_orientation_matrix(self, spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL']) -> Matrix:
+    def _get_spin_orientation_matrix(
+        self, spin_orientation: Literal['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL']
+    ) -> mathutils.Matrix:
         """Get spin orientation matrix in world space.
 
         :param spin_orientation: Spin orientation in ['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL'].
@@ -225,10 +222,10 @@ class RadialArrayProps:
         ob = self._radial_array.object
 
         return {
-            'GLOBAL': lambda: Matrix.Identity(4),
+            'GLOBAL': lambda: mathutils.Matrix.Identity(4),
             'LOCAL': lambda: ob.matrix_world.copy(),
             'VIEW': lambda: context.space_data.region_3d.view_matrix.inverted(),
-            'NORMAL': lambda: get_normal_matrix(context, ob),
+            'NORMAL': lambda: object_utils.get_normal_matrix(context, ob),
         }[spin_orientation]()
 
     def update(
@@ -311,7 +308,7 @@ class RadialArrayNodesMod:
         self.value = value
 
     @property
-    def displace_offset_vec_object(self) -> Vector:
+    def displace_offset_vec_object(self) -> mathutils.Vector:
         """Get displace vector in ob space."""
         ob = self._radial_array.object
         props = self._radial_array.properties.value
@@ -320,14 +317,14 @@ class RadialArrayNodesMod:
         spin_vec_object = self._radial_array.spin_vec_object
 
         if props.radius_offset == 0:
-            return Vector((0, 0, 0))
+            return mathutils.Vector((0, 0, 0))
         else:
             pivot_mx = ob.matrix_world.copy()
             pivot_mx.translation = pivot_point_co
-            data_center_co_pivot = pivot_mx.inverted() @ get_data_center_co_world(ob)
+            data_center_co_pivot = pivot_mx.inverted() @ object_data_utils.get_data_center_co_world(ob)
 
             non_aligned_displace_vec = (
-                Vector((1, 1, 1)) if data_center_co_pivot.length_squared < 0.001 else data_center_co_pivot
+                mathutils.Vector((1, 1, 1)) if data_center_co_pivot.length_squared < 0.001 else data_center_co_pivot
             )
 
             projection = non_aligned_displace_vec.project(spin_vec_object)
@@ -337,16 +334,16 @@ class RadialArrayNodesMod:
             displace_offset_vec = aligned_displace_vec_local * props.radius_offset
             return displace_offset_vec
 
-    def _get_start_rotation_matrix(self) -> Euler:
+    def _get_start_rotation_matrix(self) -> mathutils.Euler:
         """Get object rotation to achieve radial array starting rotation."""
         props = self._radial_array.properties.value
         assert props is not None
         spin_vec_object = self._radial_array.spin_vec_object
 
         return (
-            Euler((0, 0, 0))
+            mathutils.Euler((0, 0, 0))
             if props.start_angle == 0
-            else Matrix.Rotation(props.start_angle, 4, spin_vec_object[:]).to_euler()
+            else mathutils.Matrix.Rotation(props.start_angle, 4, spin_vec_object[:]).to_euler()
         )
 
     def refresh(self) -> None:
@@ -401,7 +398,7 @@ class RadialArrayNodesMod:
         props = self._radial_array.properties.value
         assert props is not None
 
-        self.value = new_nodes_mod(ob, array_mod, props, name)
+        self.value = radial_array_builder.new_nodes_mod(ob, array_mod, props, name)
 
     def apply(self) -> None:
         """Apply nodes modifier if it exists."""
@@ -440,14 +437,14 @@ class RadialArrayCenterEmpty:
         assert props is not None
 
         if self.value is None:
-            self.value = new_center_empty(context, ob, props)
+            self.value = radial_array_builder.new_center_empty(context, ob, props)
 
     def remove(self) -> None:
         """Remove center empty if it exists."""
         if self.value is not None:
             props = self._radial_array.properties.value
 
-            clear_children_parent_and_keep_mx(self.value)
+            object_utils.clear_children_parent_and_keep_mx(self.value)
             bpy.data.objects.remove(self.value, do_unlink=True)
             self.value = None
 
@@ -473,7 +470,7 @@ class RadialArrayOffsetEmpty:
         if props.count > 1:
             # calculate angle
             full_circle = (
-                round(props.end_angle, 5) == round(radians(360), 5)
+                round(props.end_angle, 5) == round(math.radians(360), 5)
                 and props.start_angle == 0
                 and props.height_offset == 0
             )
@@ -484,7 +481,7 @@ class RadialArrayOffsetEmpty:
 
             # transform
             children = self.value.children
-            clear_children_parent_and_keep_mx(self.value)
+            object_utils.clear_children_parent_and_keep_mx(self.value)
 
             if self.value.parent == ob:
                 # pivot point in object space
@@ -493,15 +490,15 @@ class RadialArrayOffsetEmpty:
                 self.value.matrix_parent_inverse.identity()
                 self.value.matrix_basis.identity()
                 # move offset empty to object origin
-                tra = Matrix.Translation(Vector((0, 0, 0))[:])
+                tra = mathutils.Matrix.Translation(mathutils.Vector((0, 0, 0))[:])
                 # rotation of offset empty around radial array pivot. offset empty starts in object origin
                 rot = (
-                    Matrix.Translation(pivot_point_co_object[:])
-                    @ Matrix.Rotation(spin_angle, 4, spin_vec_object[:])
-                    @ Matrix.Translation((-pivot_point_co_object)[:])
+                    mathutils.Matrix.Translation(pivot_point_co_object[:])
+                    @ mathutils.Matrix.Rotation(spin_angle, 4, spin_vec_object[:])
+                    @ mathutils.Matrix.Translation((-pivot_point_co_object)[:])
                 )
                 # (1, 1, 1) scale
-                sca = Matrix.Diagonal(Matrix.Identity(4).to_scale().to_4d()[:])
+                sca = mathutils.Matrix.Diagonal(mathutils.Matrix.Identity(4).to_scale().to_4d()[:])
                 # compose matrix
                 self.value.matrix_basis = tra @ rot @ sca
             else:
@@ -509,19 +506,19 @@ class RadialArrayOffsetEmpty:
                 self.value.matrix_world = ob.matrix_world
                 # rotation of offset empty around radial array pivot. offset empty starts in object origin
                 rot = (
-                    Matrix.Translation(pivot_point_co_world[:])
-                    @ Matrix.Rotation(spin_angle, 4, spin_vec_world[:])
-                    @ Matrix.Translation((-pivot_point_co_world)[:])
+                    mathutils.Matrix.Translation(pivot_point_co_world[:])
+                    @ mathutils.Matrix.Rotation(spin_angle, 4, spin_vec_world[:])
+                    @ mathutils.Matrix.Translation((-pivot_point_co_world)[:])
                 )
                 # apply rotation
                 self.value.matrix_world = rot @ self.value.matrix_world
 
-            set_children_parent_and_keep_mx(children, self.value)
+            object_utils.set_children_parent_and_keep_mx(children, self.value)
 
     def remove(self) -> None:
         """Remove offset empty if it exists."""
         if self.value is not None:
-            clear_children_parent_and_keep_mx(self.value)
+            object_utils.clear_children_parent_and_keep_mx(self.value)
             bpy.data.objects.remove(self.value, do_unlink=True)
             self.value = None
 
@@ -531,7 +528,7 @@ class RadialArrayPivotPoint:
         self._radial_array = radial_array
 
     @property
-    def co_world(self) -> Vector:
+    def co_world(self) -> mathutils.Vector:
         """Get current pivot point coordinates."""
         ob = self._radial_array.object
         center_empty = self._radial_array.center_empty.value
@@ -541,8 +538,8 @@ class RadialArrayPivotPoint:
         )
 
     def _get_point_co_world(
-        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | Vector
-    ) -> Vector:
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector
+    ) -> mathutils.Vector:
         """Get point coordinates.
 
         :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY', 'Vector'].
@@ -554,9 +551,9 @@ class RadialArrayPivotPoint:
         if point == 'ORIGIN':
             return ob.matrix_world.to_translation()
         elif point == 'CURSOR':
-            return Vector(context.scene.cursor.location.copy())
+            return mathutils.Vector(context.scene.cursor.location.copy())
         elif point == 'MESH_SELECTION':
-            return get_mesh_selection_co_world(context)
+            return object_data_utils.get_mesh_selection_co_world(context)
         elif point == 'ACTIVE_OBJECT':
             return context.view_layer.objects.active.matrix_world.to_translation()
         elif point == 'CENTER_EMPTY':
@@ -566,7 +563,7 @@ class RadialArrayPivotPoint:
             return point
 
     def set(
-        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | Vector
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector
     ) -> None:
         """Change pivot point location.
 
@@ -588,9 +585,9 @@ class RadialArrayPivotPoint:
                 else:
                     self._set_child_radial_array_pivot_point(point_co)
             else:
-                set_origin(context, ob, point_co)
+                object_utils.set_origin(context, ob, point_co)
 
-    def _set_top_radial_array_pivot_point(self, point_co: Vector) -> None:
+    def _set_top_radial_array_pivot_point(self, point_co: mathutils.Vector) -> None:
         """Set object origin location keeping pivot points of object radial arrays and refresh all radial arrays."""
         context = self._radial_array.context
         ob = self._radial_array.object
@@ -598,10 +595,10 @@ class RadialArrayPivotPoint:
 
         self._radial_array.center_empty.remove()
         array_group.ensure_center_empties_of_child_radial_arrays()
-        set_origin(context, ob, point_co)
+        object_utils.set_origin(context, ob, point_co)
         array_group.refresh_all()
 
-    def _set_child_radial_array_pivot_point(self, point_co: Vector) -> None:
+    def _set_child_radial_array_pivot_point(self, point_co: mathutils.Vector) -> None:
         """Set center empty location and refresh radial array."""
         self._radial_array.center_empty.ensure()
         assert self._radial_array.center_empty.value is not None

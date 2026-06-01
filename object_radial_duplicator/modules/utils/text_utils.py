@@ -1,8 +1,8 @@
+import math
 from typing import Any, Literal
 
 import blf
 import bpy
-import math_utils
 
 
 def get_text_block_dimensions(

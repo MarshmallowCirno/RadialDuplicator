@@ -1,34 +1,27 @@
 from __future__ import annotations
 
+import math
 import random
 from collections.abc import Sequence
-from math import radians
 from typing import Literal, Self, cast
 
 import bpy
+import mathutils
 import numpy as np
-from mathutils import Matrix, Vector
 
 from .. import properties
-from ..radial_objects.radial_duplicates_builder import RadialDuplicatesDirector
-from ..utils.math_utils import get_axis_vec
-from ..utils.object_data_utils import get_mesh_selection_co_world
-from ..utils.object_utils import (
-    clear_children_parent_and_keep_mx,
-    get_normal_matrix,
-    set_children_parent_and_keep_mx,
-    set_parent_and_keep_mx,
-)
+from ..radial_objects import radial_duplicates_builder
+from ..utils import math_utils, object_data_utils, object_utils
 
 
 class RadialDuplicates:
     @classmethod
     def from_props(cls, context: bpy.types.Context, props: properties.RadialDuplicatesPropsGroup) -> Self:
-        return RadialDuplicatesDirector(cls, context).build_from_props(props)
+        return radial_duplicates_builder.RadialDuplicatesDirector(cls, context).build_from_props(props)
 
     @classmethod
     def new(cls, context: bpy.types.Context, starting_ob: bpy.types.Object) -> Self:
-        return RadialDuplicatesDirector(cls, context).build_new(starting_ob)
+        return radial_duplicates_builder.RadialDuplicatesDirector(cls, context).build_new(starting_ob)
 
     def __init__(
         self,
@@ -45,7 +38,7 @@ class RadialDuplicates:
         self.pivot_point = RadialDuplicatesPivotPoint(self)
 
     @property
-    def spin_vec_object(self) -> Vector:
+    def spin_vec_object(self) -> mathutils.Vector:
         center_empty = self.center_empty.value
         props = self.properties
 
@@ -56,7 +49,7 @@ class RadialDuplicates:
         # restored if object has been rotated since then.
         spin_orientation_matrix_world = center_empty.matrix_world @ props.value.spin_orientation_matrix_object
         spin_axis = props.value.spin_axis
-        spin_vec_world = get_axis_vec(spin_axis, spin_orientation_matrix_world)
+        spin_vec_world = math_utils.get_axis_vec(spin_axis, spin_orientation_matrix_world)
         spin_vec_object = spin_vec_world @ center_empty.matrix_world
 
         return spin_vec_object
@@ -71,7 +64,7 @@ class RadialDuplicates:
         end_scale: float,
         height_offset: float,
         pivot_point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY']
-        | Vector
+        | mathutils.Vector
         | None = None,
     ) -> None:
         """Spin radial duplicates and change pivot point.
@@ -100,7 +93,9 @@ class RadialDuplicates:
         self.starting_object.refresh()
         self.duplicated_objects.refresh()
 
-    def set_pivot_point(self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT'] | Vector) -> None:
+    def set_pivot_point(
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector
+    ) -> None:
         """Set pivot point and refresh radial duplicates.
 
         :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'Vector'].
@@ -128,7 +123,7 @@ class RadialDuplicatesProps:
         props_collection = cast(properties.RadialCollections, center_empty.radial_duplicator)  # pyright: ignore[reportAttributeAccessIssue]
         return props_collection.duplicates[0]
 
-    def _get_spin_orientation_matrix(self, spin_orientation: str) -> Matrix:
+    def _get_spin_orientation_matrix(self, spin_orientation: str) -> mathutils.Matrix:
         """Get spin orientation matrix in world space.
 
         :param spin_orientation: Spin orientation in ['GLOBAL', 'LOCAL', 'VIEW', 'NORMAL'].
@@ -137,10 +132,10 @@ class RadialDuplicatesProps:
         starting_object = self._radial_duplicates.starting_object.value
 
         return {
-            'GLOBAL': lambda: Matrix.Identity(4),
+            'GLOBAL': lambda: mathutils.Matrix.Identity(4),
             'LOCAL': lambda: starting_object.matrix_world.copy(),
             'VIEW': lambda: context.space_data.region_3d.view_matrix.inverted(),
-            'NORMAL': lambda: get_normal_matrix(context, starting_object),
+            'NORMAL': lambda: object_utils.get_normal_matrix(context, starting_object),
         }[spin_orientation]()
 
     def update(
@@ -190,7 +185,7 @@ class RadialDuplicatesStartingObject:
     def _set_parent(self) -> None:
         center_empty = self._radial_duplicates.center_empty.value
 
-        set_parent_and_keep_mx(self.value, center_empty)
+        object_utils.set_parent_and_keep_mx(self.value, center_empty)
 
     def refresh(self) -> None:
         self._set_parent()
@@ -218,7 +213,7 @@ class RadialDuplicatesDuplicatedObjects:
 
         for ob in self.value:
             if ob != starting_ob:
-                clear_children_parent_and_keep_mx(ob)
+                object_utils.clear_children_parent_and_keep_mx(ob)
                 bpy.data.objects.remove(ob, do_unlink=True)
         self.value = []
 
@@ -233,7 +228,7 @@ class RadialDuplicatesDuplicatedObjects:
         self.value = dupli_obs
 
     @property
-    def displace_offset_vec_object(self) -> Vector:
+    def displace_offset_vec_object(self) -> mathutils.Vector:
         """Get displace vector in ob space."""
         props = self._radial_duplicates.properties.value
         pivot_point_co = self._radial_duplicates.pivot_point.co_world
@@ -242,7 +237,7 @@ class RadialDuplicatesDuplicatedObjects:
         center_empty = self._radial_duplicates.center_empty.value
 
         if props["radius"] == 0:
-            return Vector((0, 0, 0))
+            return mathutils.Vector((0, 0, 0))
         else:
             pivot_mx = center_empty.matrix_world.copy()
             pivot_mx.translation = pivot_point_co
@@ -267,7 +262,7 @@ class RadialDuplicatesDuplicatedObjects:
 
         if props.count > 1:
             # calculate angle
-            full_circle = round(props.end_angle, 5) == round(radians(360), 5) and props.height_offset == 0
+            full_circle = round(props.end_angle, 5) == round(math.radians(360), 5) and props.height_offset == 0
             if full_circle:
                 step_angle = props.end_angle / props.count
             else:
@@ -279,7 +274,7 @@ class RadialDuplicatesDuplicatedObjects:
             # transform
             for i, dupli_ob in enumerate(self.value, start=1):
                 children = dupli_ob.children
-                clear_children_parent_and_keep_mx(dupli_ob)
+                object_utils.clear_children_parent_and_keep_mx(dupli_ob)
 
                 # align with starting object
                 dupli_ob.matrix_world = starting_ob.matrix_world
@@ -288,9 +283,9 @@ class RadialDuplicatesDuplicatedObjects:
                 )
                 # rotation around spin axis
                 rot = (
-                    Matrix.Translation(pivot_point_co_world[:])
-                    @ Matrix.Rotation(i * step_angle, 4, spin_vec_world[:])
-                    @ Matrix.Translation((-pivot_point_co_world)[:])
+                    mathutils.Matrix.Translation(pivot_point_co_world[:])
+                    @ mathutils.Matrix.Rotation(i * step_angle, 4, spin_vec_world[:])
+                    @ mathutils.Matrix.Translation((-pivot_point_co_world)[:])
                 )
                 dupli_ob.matrix_world = rot @ dupli_ob.matrix_world
 
@@ -298,34 +293,34 @@ class RadialDuplicatesDuplicatedObjects:
                 match props.duplicates_rotation:
                     case 'KEEP':
                         r = starting_ob.matrix_world.to_3x3().normalized().to_4x4()
-                        t = Matrix.Translation(dupli_ob.matrix_world.to_translation()[:])
-                        s = Matrix.Diagonal(dupli_ob.matrix_world.to_scale().to_4d()[:])
+                        t = mathutils.Matrix.Translation(dupli_ob.matrix_world.to_translation()[:])
+                        s = mathutils.Matrix.Diagonal(dupli_ob.matrix_world.to_scale().to_4d()[:])
                         dupli_ob.matrix_world = t @ r @ s
                     case 'RANDOM':
-                        r = Matrix.Rotation(random.randrange(0, 360), 4, spin_vec_world[:])
-                        t = Matrix.Translation(dupli_ob.matrix_world.to_translation()[:])
-                        s = Matrix.Diagonal(dupli_ob.matrix_world.to_scale().to_4d()[:])
+                        r = mathutils.Matrix.Rotation(random.randrange(0, 360), 4, spin_vec_world[:])
+                        t = mathutils.Matrix.Translation(dupli_ob.matrix_world.to_translation()[:])
+                        s = mathutils.Matrix.Diagonal(dupli_ob.matrix_world.to_scale().to_4d()[:])
                         dupli_ob.matrix_world = t @ r @ s
                     case _:
                         pass
 
                 # scale
-                scale_vec = Vector((spaced_scale[i],) * 3)
+                scale_vec = mathutils.Vector((spaced_scale[i],) * 3)
 
                 sca = (
-                    Matrix.Translation(dupli_ob.matrix_world.to_translation()[:])
-                    @ Matrix.Diagonal(scale_vec[:]).to_4x4()
-                    @ Matrix.Translation((-dupli_ob.matrix_world.to_translation())[:])
+                    mathutils.Matrix.Translation(dupli_ob.matrix_world.to_translation()[:])
+                    @ mathutils.Matrix.Diagonal(scale_vec[:]).to_4x4()
+                    @ mathutils.Matrix.Translation((-dupli_ob.matrix_world.to_translation())[:])
                 )
                 dupli_ob.matrix_world = sca @ dupli_ob.matrix_world
 
-                set_children_parent_and_keep_mx(children, dupli_ob)
+                object_utils.set_children_parent_and_keep_mx(children, dupli_ob)
 
     def _set_parent(self) -> None:
         center_empty = self._radial_duplicates.center_empty.value
 
         for ob in self.value:
-            set_parent_and_keep_mx(ob, center_empty)
+            object_utils.set_parent_and_keep_mx(ob, center_empty)
 
     def refresh(self) -> None:
         self._set_count()
@@ -334,7 +329,7 @@ class RadialDuplicatesDuplicatedObjects:
 
     def remove(self) -> None:
         for ob in self.value:
-            clear_children_parent_and_keep_mx(ob)
+            object_utils.clear_children_parent_and_keep_mx(ob)
             bpy.data.objects.remove(ob, do_unlink=True)
         self.value = []
 
@@ -350,7 +345,7 @@ class RadialDuplicatesCenterEmpty:
 
     def remove(self) -> None:
         """Remove center empty."""
-        clear_children_parent_and_keep_mx(self.value)
+        object_utils.clear_children_parent_and_keep_mx(self.value)
         bpy.data.objects.remove(self.value, do_unlink=True)
 
 
@@ -359,15 +354,15 @@ class RadialDuplicatesPivotPoint:
         self._radial_duplicates = radial_duplicates
 
     @property
-    def co_world(self) -> Vector:
+    def co_world(self) -> mathutils.Vector:
         """Get current pivot point coordinates."""
         center_empty = self._radial_duplicates.center_empty.value
 
         return center_empty.matrix_world.to_translation()
 
     def _get_point_co_world(
-        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | Vector
-    ) -> Vector:
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector
+    ) -> mathutils.Vector:
         """Get point coordinates.
 
         :param point: Point in ['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY', 'Vector'].
@@ -379,9 +374,9 @@ class RadialDuplicatesPivotPoint:
         if point == 'ORIGIN':
             return starting_ob.matrix_world.to_translation()
         elif point == 'CURSOR':
-            return Vector(context.scene.cursor.location.copy())
+            return mathutils.Vector(context.scene.cursor.location.copy())
         elif point == 'MESH_SELECTION':
-            return get_mesh_selection_co_world(context)
+            return object_data_utils.get_mesh_selection_co_world(context)
         elif point == 'ACTIVE_OBJECT':
             return context.view_layer.objects.active.matrix_world.to_translation()
         elif point == 'CENTER_EMPTY':
@@ -390,7 +385,7 @@ class RadialDuplicatesPivotPoint:
             return point
 
     def set(
-        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | Vector
+        self, point: Literal['ORIGIN', 'CURSOR', 'MESH_SELECTION', 'ACTIVE_OBJECT', 'CENTER_EMPTY'] | mathutils.Vector
     ) -> None:
         """Change pivot point location.
 
@@ -399,10 +394,10 @@ class RadialDuplicatesPivotPoint:
         center_empty = self._radial_duplicates.center_empty.value
 
         children = center_empty.children
-        clear_children_parent_and_keep_mx(center_empty)
+        object_utils.clear_children_parent_and_keep_mx(center_empty)
 
         point_co = self._get_point_co_world(point)
         center_empty.matrix_world.translation = point_co
 
-        set_children_parent_and_keep_mx(children, center_empty)
+        object_utils.set_children_parent_and_keep_mx(children, center_empty)
         self._radial_duplicates.refresh()

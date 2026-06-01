@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, cast
 
 import bpy
 
-from ...addon_info import get_preferences
+from ... import addon_info
 from .. import properties
-from ..utils.object_utils import copy_collections, copy_local_view_state, move_to_collection
+from ..utils import object_utils
 
 if TYPE_CHECKING:
     from . import radial_duplicates_object
@@ -29,12 +29,12 @@ def new_center_empty(context: bpy.types.Context, starting_ob: bpy.types.Object) 
     """Add a new center empty and return it."""
     center_empty = bpy.data.objects.new(name="RadialDuplicatesEmpty", object_data=None)
     center_empty.empty_display_type = 'SPHERE'
-    if get_preferences().move_empties_to_collection:
-        empties_collection = get_preferences().empties_collection
-        move_to_collection(empties_collection, center_empty)
+    if addon_info.get_preferences().move_empties_to_collection:
+        empties_collection = addon_info.get_preferences().empties_collection
+        object_utils.move_to_collection(empties_collection, center_empty)
     else:
-        copy_collections(starting_ob, center_empty)
-        copy_local_view_state(context, center_empty)
+        object_utils.copy_collections(starting_ob, center_empty)
+        object_utils.copy_local_view_state(context, center_empty)
     # matrix_world of the newly created object updates after updating depsgraph
     context.evaluated_depsgraph_get().update()
     return center_empty
@@ -53,17 +53,17 @@ def fix_center_empty(starting_ob: bpy.types.Object, center_empty: bpy.types.Obje
     """Set correct center empty collections."""
     if center_empty is not None:
         if not center_empty.users_collection:
-            if get_preferences().move_empties_to_collection:
-                empties_collection = get_preferences().empties_collection
-                move_to_collection(empties_collection, center_empty)
+            if addon_info.get_preferences().move_empties_to_collection:
+                empties_collection = addon_info.get_preferences().empties_collection
+                object_utils.move_to_collection(empties_collection, center_empty)
             else:
-                copy_collections(starting_ob, center_empty)
+                object_utils.copy_collections(starting_ob, center_empty)
 
 
 def fix_starting_ob(starting_ob: bpy.types.Object, center_empty: bpy.types.Object) -> None:
     """Set correct starting object collections."""
     if not starting_ob.users_collection:
-        copy_collections(center_empty, starting_ob)
+        object_utils.copy_collections(center_empty, starting_ob)
 
 
 class ExistingRadialDuplicatesBuilder:

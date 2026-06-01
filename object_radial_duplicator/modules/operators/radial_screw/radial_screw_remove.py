@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import bpy
 
-from ...radial_objects.radial_screw_object import ObjectRadialScrews
+from ...radial_objects import radial_screw_object
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -45,7 +45,7 @@ class RADDUPLICATOR_OT_radial_screw_remove(bpy.types.Operator):
         # From poll
         assert context.object is not None
 
-        radial_screws = ObjectRadialScrews(context, context.object)
+        radial_screws = radial_screw_object.ObjectRadialScrews(context, context.object)
         radial_screw = radial_screws.get_by_name(self.name)
         if radial_screw is None:
             self.report({'ERROR'}, "Not found")

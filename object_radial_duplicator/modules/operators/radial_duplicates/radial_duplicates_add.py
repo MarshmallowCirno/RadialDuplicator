@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from math import radians
+import math
 from typing import TYPE_CHECKING, Literal, cast
 
 import bpy
 
-from ...radial_objects.radial_duplicates_object import RadialDuplicates
-from ...utils.object_data_utils import is_data_selected
+from ...radial_objects import radial_duplicates_object
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -81,11 +80,11 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
             name="End Angle",
             description="Rotation placement for the last duplicated geometry as a number of degrees offset from 0 degrees",
             min=0,
-            max=radians(360),
+            max=math.radians(360),
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(360),
+            default=math.radians(360),
             options={'SKIP_SAVE'},
         )
         end_scale: bpy.props.FloatProperty(
@@ -166,7 +165,7 @@ class RADDUPLCIATOR_OT_radial_duplicates_add(bpy.types.Operator):
             sel_obs.remove(active_ob)
 
         for starting_ob in sel_obs:
-            radial_duplicates = RadialDuplicates.new(context, starting_ob)
+            radial_duplicates = radial_duplicates_object.RadialDuplicates.new(context, starting_ob)
             radial_duplicates.modify(
                 self.spin_orientation,
                 self.spin_axis,

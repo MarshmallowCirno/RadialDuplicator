@@ -3,16 +3,16 @@ from typing import Literal
 
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+import mathutils
 
-from ..utils.object_data_utils import is_data_selected
+from ..utils import object_data_utils
 
 
-def get_normal_matrix(context: bpy.types.Context, ob: bpy.types.Object) -> Matrix:
+def get_normal_matrix(context: bpy.types.Context, ob: bpy.types.Object) -> mathutils.Matrix:
     """Get normal matrix of selection."""
     assert isinstance(ob.data, (bpy.types.Mesh, bpy.types.Curve))
 
-    if ob.mode == 'EDIT' and not is_data_selected(ob.data):
+    if ob.mode == 'EDIT' and not object_data_utils.is_data_selected(ob.data):
         return ob.matrix_world.copy()
     else:
         active_slot = context.scene.transform_orientation_slots[0]
@@ -57,14 +57,14 @@ def copy_local_view_state(context: bpy.types.Context, ob: bpy.types.Object) -> N
             ob.local_view_set(space, True)
 
 
-def set_origin(context: bpy.types.Context, ob: bpy.types.Object, co_world: Vector) -> None:
+def set_origin(context: bpy.types.Context, ob: bpy.types.Object, co_world: mathutils.Vector) -> None:
     """Set object origin location."""
 
     if ob.mode == 'EDIT' and ob.type == 'MESH':
         assert isinstance(ob.data, bpy.types.Mesh)
 
         co_local = ob.matrix_world.inverted() @ co_world
-        transform_mx = Matrix.Translation((-co_local)[:])
+        transform_mx = mathutils.Matrix.Translation((-co_local)[:])
 
         bm = bmesh.from_edit_mesh(ob.data)
         bm.transform(transform_mx)
@@ -81,7 +81,7 @@ def set_origin(context: bpy.types.Context, ob: bpy.types.Object, co_world: Vecto
         assert isinstance(ob.data, (bpy.types.Mesh, bpy.types.Curve))
 
         co_local = ob.matrix_world.inverted() @ co_world
-        transform_mx = Matrix.Translation((-co_local)[:])
+        transform_mx = mathutils.Matrix.Translation((-co_local)[:])
 
         ob.data.transform(transform_mx)
 

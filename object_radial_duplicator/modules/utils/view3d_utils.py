@@ -1,16 +1,16 @@
 import bpy
 
-from ...addon_info import get_preferences
+from ... import addon_info
 
 
 def hide_sidebar(context: bpy.types.Context) -> None:
-    if get_preferences().hide_sidebar:
+    if addon_info.get_preferences().hide_sidebar:
         if context.space_data.show_region_ui and context.preferences.system.use_region_overlap:
             context.space_data.show_region_ui = False
 
 
 def restore_sidebar(context: bpy.types.Context, initial_state: bool) -> None:
-    if get_preferences().hide_sidebar:
+    if addon_info.get_preferences().hide_sidebar:
         context.space_data.show_region_ui = initial_state
 
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from math import radians
+import math
 from typing import TYPE_CHECKING, Literal, cast
 
 import bpy
 
-from ...radial_objects.radial_array_object import ObjectRadialArrays
-from ...utils.object_data_utils import is_data_selected
+from ...radial_objects import radial_array_object
+from ...utils import object_data_utils
 
 if TYPE_CHECKING:
     from bpy.stub_internal.rna_enums import OperatorReturnItems
@@ -82,18 +82,18 @@ class RADDUPLCIATOR_OT_radial_array_add(bpy.types.Operator):
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(0),
+            default=math.radians(0),
             options={'SKIP_SAVE'},
         )
         end_angle: bpy.props.FloatProperty(
             name="End Angle",
             description="Rotation placement for the last duplicated geometry as a number of degrees offset from 0 degrees",
             min=0,
-            max=radians(360),
+            max=math.radians(360),
             subtype='ANGLE',
             unit='ROTATION',
             step=100,
-            default=radians(360),
+            default=math.radians(360),
             options={'SKIP_SAVE'},
         )
         height_offset: bpy.props.FloatProperty(
@@ -143,7 +143,7 @@ class RADDUPLCIATOR_OT_radial_array_add(bpy.types.Operator):
         assert isinstance(context.object.data, bpy.types.Mesh | bpy.types.Curve)
 
         # Use NORMAL orientation if data element is selected
-        if context.object.mode == 'EDIT' and is_data_selected(context.object.data):
+        if context.object.mode == 'EDIT' and object_data_utils.is_data_selected(context.object.data):
             self.spin_orientation = 'NORMAL'
             self.pivot_point = 'MESH_SELECTION'
 
@@ -171,7 +171,7 @@ class RADDUPLCIATOR_OT_radial_array_add(bpy.types.Operator):
             sel_obs.remove(active_ob)
 
         for ob in sel_obs:
-            radial_arrays = ObjectRadialArrays(context, ob)
+            radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
             radial_array = radial_arrays.new()
             radial_array.modify(
                 self.spin_orientation,
