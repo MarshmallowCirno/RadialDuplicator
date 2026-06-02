@@ -262,6 +262,7 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
         assert context.object is not None
         assert context.selected_objects is not None
 
+        self.master_ob = context.object
         self.slave_obs = [
             ob
             for ob in context.selected_objects
