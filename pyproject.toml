@@ -1,6 +1,6 @@
 [project]
 name = "radial-duplicator"
-version = "2.3"
+version = "2.4"
 description = "Create radial array, screw or add linked duplicates of selected object and place them radially around the 3D cursor"
 license = "GPL-3.0-or-later"
 readme = "README.md"

@@ -93,7 +93,7 @@ wheels = [
 
 [[package]]
 name = "radial-duplicator"
-version = "2.3"
+version = "2.4"
 source = { virtual = "." }
 dependencies = [
     { name = "numpy" },
