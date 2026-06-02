@@ -161,7 +161,6 @@ class RadialScrew:
         self.properties.remove()
         self.nodes_modifier.apply()
         success_msg = self.screw_modifier.apply()
-        self.axis_empty.remove()
         self.siblings.value.remove(self)
         return success_msg
 
@@ -171,7 +170,6 @@ class RadialScrew:
         self.properties.remove()
         self.nodes_modifier.remove()
         self.screw_modifier.remove()
-        self.axis_empty.remove()
         self.siblings.value.remove(self)
 
 
