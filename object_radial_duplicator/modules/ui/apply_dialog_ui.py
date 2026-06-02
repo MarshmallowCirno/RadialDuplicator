@@ -48,20 +48,3 @@ class RADDUPLICATOR_OT_apply_multi_user_data_dialog(bpy.types.Operator):
         op = layout.operator(self.op_name, text="Apply To All Objects")
         op.multiuser_data_apply_method = 'APPLY_TO_ALL'
         op.name = self.name
-
-
-_classes = (RADDUPLICATOR_OT_apply_multi_user_data_dialog,)
-
-
-def register():
-    from bpy.utils import register_class
-
-    for cls in _classes:
-        register_class(cls)
-
-
-def unregister():
-    from bpy.utils import unregister_class
-
-    for cls in _classes:
-        unregister_class(cls)

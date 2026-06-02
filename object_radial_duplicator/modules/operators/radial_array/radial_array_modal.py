@@ -1338,20 +1338,3 @@ class RADDUPLICATOR_OT_radial_array_modal(bpy.types.Operator):
 
         gpu.state.blend_set('NONE')
         gpu.state.line_width_set(1)
-
-
-_classes = (RADDUPLICATOR_OT_radial_array_modal,)
-
-
-def register():
-    from bpy.utils import register_class
-
-    for cls in _classes:
-        register_class(cls)
-
-
-def unregister():
-    from bpy.utils import unregister_class
-
-    for cls in _classes:
-        unregister_class(cls)

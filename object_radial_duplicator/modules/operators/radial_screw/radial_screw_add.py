@@ -211,20 +211,3 @@ class RADDUPLCIATOR_OT_radial_screw_add(bpy.types.Operator):
         layout.prop(self, "screw_offset")
         layout.prop(self, "iterations")
         layout.prop(self, "pivot_point")
-
-
-_classes = (RADDUPLCIATOR_OT_radial_screw_add,)
-
-
-def register():
-    from bpy.utils import register_class
-
-    for cls in _classes:
-        register_class(cls)
-
-
-def unregister():
-    from bpy.utils import unregister_class
-
-    for cls in _classes:
-        unregister_class(cls)

@@ -70,20 +70,3 @@ class RADDUPLCIATOR_OT_radial_duplicates_set_pivot_point(bpy.types.Operator):
         radial_duplicates = radial_duplicates_object.RadialDuplicates.from_props(context, props)
         radial_duplicates.set_pivot_point(self.pivot_point)
         return {'FINISHED'}
-
-
-_classes = (RADDUPLCIATOR_OT_radial_duplicates_set_pivot_point,)
-
-
-def register():
-    from bpy.utils import register_class
-
-    for cls in _classes:
-        register_class(cls)
-
-
-def unregister():
-    from bpy.utils import unregister_class
-
-    for cls in _classes:
-        unregister_class(cls)

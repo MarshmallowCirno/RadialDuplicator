@@ -253,20 +253,3 @@ class RADDUPLCIATOR_PT_sidebar(bpy.types.Panel):
                     )
                     op.name = screw_mod.name
                     op.pivot_point = 'CURSOR'
-
-
-_classes = (RADDUPLCIATOR_PT_sidebar,)
-
-
-def register():
-    from bpy.utils import register_class
-
-    for cls in _classes:
-        register_class(cls)
-
-
-def unregister():
-    from bpy.utils import unregister_class
-
-    for cls in _classes:
-        unregister_class(cls)

@@ -66,20 +66,3 @@ class RADDUPLCIATOR_OT_radial_screw_set_pivot_point(bpy.types.Operator):
             return {'CANCELLED'}
         radial_screw.set_pivot_point(self.pivot_point)
         return {'FINISHED'}
-
-
-_classes = (RADDUPLCIATOR_OT_radial_screw_set_pivot_point,)
-
-
-def register():
-    from bpy.utils import register_class
-
-    for cls in _classes:
-        register_class(cls)
-
-
-def unregister():
-    from bpy.utils import unregister_class
-
-    for cls in _classes:
-        unregister_class(cls)

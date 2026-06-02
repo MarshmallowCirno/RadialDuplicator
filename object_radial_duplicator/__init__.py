@@ -33,12 +33,31 @@ bl_info = {
 
 _RELOADABLE_MODULE_NAMES = (
     "addon_info",
+    "object_data_utils",
+    "object_utils",
+    "radial_array_builder",
+    "math_utils",
+    "radial_array_object",
+    "radial_duplicates_builder",
+    "radial_duplicates_object",
+    "radial_screw_builder",
+    "radial_screw_object",
     "properties",
+    "multiuser_data_changer",
     "apply_base",
     "modal_keymap",
     "ot_keymap",
     "radial_array_add",
     "radial_array_apply",
+    "sidebar_ui",
+    "layout_draw_utils",
+    "addon_preferences",
+    "gpu_draw_utils",
+    "modal_utils",
+    "scene_utils",
+    "text_utils",
+    "theme_utils",
+    "view3d_utils",
     "radial_array_modal",
     "radial_array_refresh",
     "radial_array_remove",
@@ -53,26 +72,12 @@ _RELOADABLE_MODULE_NAMES = (
     "radial_screw_refresh",
     "radial_screw_remove",
     "radial_screw_set_pivot_point",
-    "sidebar_ui",
-    "layout_draw_utils",
-    "addon_preferences",
-    "radial_array_builder",
-    "radial_array_object",
-    "radial_duplicates_builder",
-    "radial_duplicates_object",
-    "radial_screw_builder",
-    "radial_screw_object",
     "apply_dialog_ui",
-    "gpu_draw_utils",
-    "math_utils",
-    "modal_utils",
-    "multiuser_data_changer",
-    "object_data_utils",
-    "object_utils",
-    "scene_utils",
-    "text_utils",
-    "theme_utils",
-    "view3d_utils",
+    "radial_array",
+    "radial_duplicates",
+    "radial_screw",
+    "operators",
+    "ui",
 )
 
 # Support reloading submodules
@@ -88,9 +93,10 @@ else:
     # Prevent imports when run in the background, since gpu shaders will not be available
     if not bpy.app.background:
         from . import addon_info
-        from .modules import properties
+        from .modules import operators, properties, ui
         from .modules.base_classes import apply_base
         from .modules.keymap import modal_keymap, ot_keymap
+        from .modules.operators import radial_array, radial_duplicates, radial_screw
         from .modules.operators.radial_array import (
             radial_array_add,
             radial_array_apply,
@@ -141,85 +147,26 @@ import bpy  # noqa: E402
 
 # Prevent loading in the background, since gpu shaders will not be available
 if not bpy.app.background:
-    from .modules import properties
+    from .modules import operators, properties, ui
     from .modules.keymap import ot_keymap
-    from .modules.operators.radial_array import (
-        radial_array_add,
-        radial_array_apply,
-        radial_array_modal,
-        radial_array_refresh,
-        radial_array_remove,
-        radial_array_set_pivot_point,
-    )
-    from .modules.operators.radial_duplicates import (
-        radial_duplicates_add,
-        radial_duplicates_modal,
-        radial_duplicates_remove,
-        radial_duplicates_set_pivot_point,
-    )
-    from .modules.operators.radial_screw import (
-        radial_screw_add,
-        radial_screw_apply,
-        radial_screw_modal,
-        radial_screw_refresh,
-        radial_screw_remove,
-        radial_screw_set_pivot_point,
-    )
     from .modules.preferences import addon_preferences
-    from .modules.ui import apply_dialog_ui, sidebar_ui
 
     def register():
         properties.register()
         addon_preferences.register()
 
-        radial_array_add.register()
-        radial_array_apply.register()
-        radial_array_modal.register()
-        radial_array_refresh.register()
-        radial_array_remove.register()
-        radial_array_set_pivot_point.register()
+        operators.register()
 
-        radial_duplicates_add.register()
-        radial_duplicates_modal.register()
-        radial_duplicates_remove.register()
-        radial_duplicates_set_pivot_point.register()
-
-        radial_screw_add.register()
-        radial_screw_apply.register()
-        radial_screw_modal.register()
-        radial_screw_refresh.register()
-        radial_screw_remove.register()
-        radial_screw_set_pivot_point.register()
-
-        apply_dialog_ui.register()
-        sidebar_ui.register()
+        ui.register()
 
         ot_keymap.register()
 
     def unregister():
         ot_keymap.unregister()
 
-        apply_dialog_ui.unregister()
-        sidebar_ui.unregister()
+        ui.unregister()
 
-        radial_array_add.unregister()
-        radial_array_apply.unregister()
-        radial_array_modal.unregister()
-        radial_array_refresh.unregister()
-        radial_array_remove.unregister()
-        radial_array_set_pivot_point.unregister()
-
-        radial_duplicates_add.unregister()
-        radial_duplicates_modal.unregister()
-        radial_duplicates_remove.unregister()
-        radial_duplicates_set_pivot_point.unregister()
-
-        radial_screw_add.unregister()
-        radial_screw_apply.unregister()
-        radial_screw_modal.unregister()
-        radial_screw_refresh.unregister()
-        radial_screw_remove.unregister()
-        radial_screw_set_pivot_point.unregister()
+        operators.unregister()
 
         addon_preferences.unregister()
         properties.unregister()
