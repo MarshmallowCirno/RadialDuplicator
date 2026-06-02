@@ -1314,11 +1314,6 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
     def draw_3d_shaders(self, context: bpy.types.Context):
         """Draw 3d shaders (angle lines and axis circle)."""
 
-        # From previous logic
-        assert self.axis_circle_batch is not None
-        assert self.angle_lines_batch is not None
-        assert self.angle_fill_batch is not None
-
         axis_color = theme_utils.get_axis_color(context, self.spin_axis)
 
         shader_3d.bind()
@@ -1326,6 +1321,9 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
 
         gpu.state.line_width_set(3)
         gpu.state.blend_set('ALPHA')
+
+        # From previous logic
+        assert self.axis_circle_batch is not None
 
         # Axis circle
         self.axis_circle_batch.draw(shader_3d)
@@ -1335,6 +1333,10 @@ class RADDUPLICATOR_OT_radial_screw_modal(bpy.types.Operator):
             self.start_angle != cast(bpy.types.FloatProperty, op_properties["start_angle"]).default
             or self.end_angle != cast(bpy.types.FloatProperty, op_properties["end_angle"]).default
         ):
+            # From previous logic
+            assert self.angle_lines_batch is not None
+            assert self.angle_fill_batch is not None
+
             # Angle lines
             self.angle_lines_batch.draw(shader_3d)
 
