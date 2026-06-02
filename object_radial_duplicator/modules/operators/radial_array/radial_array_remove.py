@@ -54,18 +54,18 @@ class RADDUPLICATOR_OT_radial_array_remove(bpy.types.Operator):
         return {'FINISHED'}
 
 
-classes = (RADDUPLICATOR_OT_radial_array_remove,)
+_classes = (RADDUPLICATOR_OT_radial_array_remove,)
 
 
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)

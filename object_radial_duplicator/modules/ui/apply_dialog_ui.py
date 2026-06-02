@@ -50,18 +50,18 @@ class RADDUPLICATOR_OT_apply_multi_user_data_dialog(bpy.types.Operator):
         op.name = self.name
 
 
-classes = (RADDUPLICATOR_OT_apply_multi_user_data_dialog,)
+_classes = (RADDUPLICATOR_OT_apply_multi_user_data_dialog,)
 
 
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)

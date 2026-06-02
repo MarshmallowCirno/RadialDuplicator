@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from ... import properties
 
 
-shader_2d = gpu.shader.from_builtin('UNIFORM_COLOR')
-shader_3d = gpu.shader.from_builtin('UNIFORM_COLOR')
+_shader_2d = gpu.shader.from_builtin('UNIFORM_COLOR')
+_shader_3d = gpu.shader.from_builtin('UNIFORM_COLOR')
 
 
 class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
@@ -877,7 +877,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
 
         # Draw
         gpu_draw_utils.draw_bg(
-            shader_2d,
+            _shader_2d,
             props_text_block_x_right,
             props_text_block_y_bottom,
             props_text_block_x_left,
@@ -955,7 +955,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         axis_circle_vertices = axis_circle_vertices.tolist()
 
         self.axis_circle_batch = gpu_extras.batch.batch_for_shader(
-            shader_3d,
+            _shader_3d,
             'LINE_LOOP',  # pyright: ignore[reportArgumentType]
             {"pos": axis_circle_vertices},
         )
@@ -980,7 +980,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             ]
 
             self.angle_lines_batch = gpu_extras.batch.batch_for_shader(
-                shader_3d,
+                _shader_3d,
                 'LINES',
                 {"pos": vertices},
             )
@@ -1000,7 +1000,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
                 fill_vertices.append(step_co_world[:])
 
             self.angle_fill_batch = gpu_extras.batch.batch_for_shader(
-                shader_3d,
+                _shader_3d,
                 'TRI_FAN',  # pyright: ignore[reportArgumentType]
                 {"pos": fill_vertices},
             )
@@ -1010,8 +1010,8 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
 
         axis_color = theme_utils.get_axis_color(context, self.spin_axis)
 
-        shader_3d.bind()
-        shader_3d.uniform_float("color", axis_color)
+        _shader_3d.bind()
+        _shader_3d.uniform_float("color", axis_color)
 
         gpu.state.line_width_set(3)
         gpu.state.blend_set('ALPHA')
@@ -1020,7 +1020,7 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
         assert self.axis_circle_batch is not None
 
         # Axis circle
-        self.axis_circle_batch.draw(shader_3d)
+        self.axis_circle_batch.draw(_shader_3d)
 
         op_properties = self.properties.bl_rna.properties
         if self.end_angle != cast(bpy.types.FloatProperty, op_properties["end_angle"]).default:
@@ -1029,29 +1029,29 @@ class RADDUPLICATOR_OT_radial_duplicates_modal(bpy.types.Operator):
             assert self.angle_fill_batch is not None
 
             # Angle lines
-            self.angle_lines_batch.draw(shader_3d)
+            self.angle_lines_batch.draw(_shader_3d)
 
             # Angle fill
             fill_color = (*list(axis_color)[:-1], 0.2)
-            shader_3d.uniform_float("color", fill_color)
-            self.angle_fill_batch.draw(shader_3d)
+            _shader_3d.uniform_float("color", fill_color)
+            self.angle_fill_batch.draw(_shader_3d)
 
         gpu.state.blend_set('NONE')
         gpu.state.line_width_set(1)
 
 
-classes = (RADDUPLICATOR_OT_radial_duplicates_modal,)
+_classes = (RADDUPLICATOR_OT_radial_duplicates_modal,)
 
 
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)

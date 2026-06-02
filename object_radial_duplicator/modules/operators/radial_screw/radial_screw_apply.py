@@ -54,18 +54,18 @@ class RADDUPLICATOR_OT_radial_screw_apply(bpy.types.Operator, apply_base.ApplyMo
         return {'FINISHED'}
 
 
-classes = (RADDUPLICATOR_OT_radial_screw_apply,)
+_classes = (RADDUPLICATOR_OT_radial_screw_apply,)
 
 
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)

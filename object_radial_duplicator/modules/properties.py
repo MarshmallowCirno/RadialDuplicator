@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Literal, cast
 
 import bpy
@@ -9,13 +9,27 @@ import mathutils
 
 from .radial_objects import radial_array_object, radial_duplicates_object, radial_screw_object
 
-modal_key_items: list[tuple[str, str, str, int]] = []
-for i in cast(bpy.types.EnumProperty, bpy.types.Event.bl_rna.properties["type"]).enum_items.values():
-    if i is not None:
-        modal_key_items.append((i.identifier, i.name, "", i.value))
+
+def _yield_event_type_enum_property_items() -> Iterable[tuple[str, str, str, int]]:
+    # https://docs.blender.org/api/current/bpy_types_enum_items/event_type_items.html
+    event_type_enum = cast(bpy.types.EnumProperty, bpy.types.Event.bl_rna.properties["type"])
+    for event_type_enum_item in event_type_enum.enum_items.values():
+        if event_type_enum_item is None:
+            continue
+        yield (
+            # https://docs.blender.org/api/current/bpy.props.html#bpy.props.EnumProperty
+            # identifier
+            event_type_enum_item.identifier,
+            # name
+            event_type_enum_item.name,
+            # description
+            "",
+            # number
+            event_type_enum_item.value,
+        )
 
 
-def update_array(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> None:
+def _update_array(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
     radial_array = radial_arrays.get_by_name(self.name)
@@ -31,7 +45,7 @@ def update_array(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> N
     )
 
 
-def update_array_show_viewport(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> None:
+def _update_array_show_viewport(self: "RadialArrayPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_arrays = radial_array_object.ObjectRadialArrays(context, ob)
     radial_array = radial_arrays.get_by_name(self.name)
@@ -73,7 +87,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
                 ),
             ],
             default='LOCAL',
-            update=update_array,
+            update=_update_array,
         )
         spin_orientation_matrix_object: bpy.props.FloatVectorProperty(
             name="Spin Orientation Matrix",
@@ -90,7 +104,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
                 ('Z', "Z", "Spin around axis Z"),
             ],
             default='Z',
-            update=update_array,
+            update=_update_array,
         )
         center_empty: bpy.props.PointerProperty(
             name="Center Empty",
@@ -102,7 +116,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             description="Total number of duplicates to make",
             min=1,
             default=6,
-            update=update_array,
+            update=_update_array,
         )
         radius_offset: bpy.props.FloatProperty(
             name="Radius Offset",
@@ -110,7 +124,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             subtype='DISTANCE',
             unit='LENGTH',
             default=0.0,
-            update=update_array,
+            update=_update_array,
         )
         start_angle: bpy.props.FloatProperty(
             name="Start Angle",
@@ -120,7 +134,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             unit='ROTATION',
             step=100,
             default=math.radians(0),
-            update=update_array,
+            update=_update_array,
         )
         end_angle: bpy.props.FloatProperty(
             name="End Angle",
@@ -130,7 +144,7 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             unit='ROTATION',
             step=100,
             default=math.radians(360),
-            update=update_array,
+            update=_update_array,
         )
         height_offset: bpy.props.FloatProperty(
             name="Height Offset",
@@ -140,17 +154,17 @@ class RadialArrayPropsGroup(bpy.types.PropertyGroup):
             subtype='DISTANCE',
             unit='LENGTH',
             default=0.0,
-            update=update_array,
+            update=_update_array,
         )
         show_viewport: bpy.props.BoolProperty(
             name="Display",
             description="Display in viewport",
             default=True,
-            update=update_array_show_viewport,
+            update=_update_array_show_viewport,
         )
 
 
-def update_screw(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> None:
+def _update_screw(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_screws = radial_screw_object.ObjectRadialScrews(context, ob)
     radial_screw = radial_screws.get_by_name(self.name)
@@ -167,7 +181,7 @@ def update_screw(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> N
     )
 
 
-def update_screw_show_viewport(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> None:
+def _update_screw_show_viewport(self: "RadialScrewPropsGroup", context: bpy.types.Context) -> None:
     ob = cast(bpy.types.Object, self.id_data)
     radial_screws = radial_screw_object.ObjectRadialScrews(context, ob)
     radial_screw = radial_screws.get_by_name(self.name)
@@ -210,7 +224,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
                 ),
             ],
             default='LOCAL',
-            update=update_screw,
+            update=_update_screw,
         )
         spin_orientation_matrix_object: bpy.props.FloatVectorProperty(
             name="Spin Orientation Matrix",
@@ -227,7 +241,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
                 ('Z', "Z", "Spin around axis Z"),
             ],
             default='Z',
-            update=update_screw,
+            update=_update_screw,
         )
         axis_empty: bpy.props.PointerProperty(
             name="Axis Empty",
@@ -239,7 +253,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             description="Number of steps in the revolution",
             min=1,
             default=16,
-            update=update_screw,
+            update=_update_screw,
         )
         radius_offset: bpy.props.FloatProperty(
             name="Radius Offset",
@@ -247,7 +261,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             subtype='DISTANCE',
             unit='LENGTH',
             default=0.0,
-            update=update_screw,
+            update=_update_screw,
         )
         start_angle: bpy.props.FloatProperty(
             name="Start Angle",
@@ -257,7 +271,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             unit='ROTATION',
             step=100,
             default=math.radians(0),
-            update=update_screw,
+            update=_update_screw,
         )
         end_angle: bpy.props.FloatProperty(
             name="End Angle",
@@ -266,7 +280,7 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             unit='ROTATION',
             step=100,
             default=math.radians(360),
-            update=update_screw,
+            update=_update_screw,
         )
         screw_offset: bpy.props.FloatProperty(
             name="Screw Offset",
@@ -274,24 +288,24 @@ class RadialScrewPropsGroup(bpy.types.PropertyGroup):
             subtype='DISTANCE',
             unit='LENGTH',
             default=0.0,
-            update=update_screw,
+            update=_update_screw,
         )
         iterations: bpy.props.IntProperty(
             name="Count",
             description="Number of times to apply the screw operation",
             min=1,
             default=1,
-            update=update_screw,
+            update=_update_screw,
         )
         show_viewport: bpy.props.BoolProperty(
             name="Display",
             description="Display in viewport",
             default=True,
-            update=update_screw_show_viewport,
+            update=_update_screw_show_viewport,
         )
 
 
-def update_duplicates(self: "RadialDuplicatesPropsGroup", context: bpy.types.Context) -> None:
+def _update_duplicates(self: "RadialDuplicatesPropsGroup", context: bpy.types.Context) -> None:
     radial_duplicate = radial_duplicates_object.RadialDuplicates.from_props(context, self)
     radial_duplicate.modify(
         self.spin_orientation,
@@ -304,7 +318,7 @@ def update_duplicates(self: "RadialDuplicatesPropsGroup", context: bpy.types.Con
     )
 
 
-def update_duplicates_show_viewport(self: "RadialDuplicatesPropsGroup", context: bpy.types.Context) -> None:
+def _update_duplicates_show_viewport(self: "RadialDuplicatesPropsGroup", context: bpy.types.Context) -> None:
     radial_duplicate = radial_duplicates_object.RadialDuplicates.from_props(context, self)
     dupli_obs = radial_duplicate.duplicated_objects.value
 
@@ -340,7 +354,7 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
                 ('VIEW', "View", "Align the duplication axes to the window", 'ORIENTATION_VIEW', 2),
             ],
             default='LOCAL',
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         spin_orientation_matrix_object: bpy.props.FloatVectorProperty(
             name="Spin Orientation Matrix",
@@ -357,7 +371,7 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
                 ('Z', "Z", "Spin around axis Z"),
             ],
             default='Z',
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         duplicates_rotation: bpy.props.EnumProperty(
             name="Duplicates Rotation",
@@ -368,14 +382,14 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
                 ('RANDOM', "Random", "Randomize object rotation around the spin axis"),
             ],
             default='FOLLOW',
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         count: bpy.props.IntProperty(
             name="Count",
             description="Total number of duplicates to make",
             min=1,
             default=6,
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         end_angle: bpy.props.FloatProperty(
             name="End Angle",
@@ -384,7 +398,7 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
             unit='ROTATION',
             step=100,
             default=math.radians(360),
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         end_scale: bpy.props.FloatProperty(
             name="End Scale",
@@ -393,7 +407,7 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
             step=1,
             default=1.0,
             precision=3,
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         height_offset: bpy.props.FloatProperty(
             name="Height Offset",
@@ -403,19 +417,19 @@ class RadialDuplicatesPropsGroup(bpy.types.PropertyGroup):
             subtype='DISTANCE',
             unit='LENGTH',
             default=0.0,
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         starting_object: bpy.props.PointerProperty(
             name="Starting Object",
             description="Original object",
             type=bpy.types.Object,
-            update=update_duplicates,
+            update=_update_duplicates,
         )
         show_viewport: bpy.props.BoolProperty(
             name="Display",
             description="Display in viewport",
             default=True,
-            update=update_duplicates_show_viewport,
+            update=_update_duplicates_show_viewport,
         )
 
 
@@ -430,7 +444,7 @@ class RadialCollections(bpy.types.PropertyGroup):
         screws: bpy.props.CollectionProperty(type=RadialScrewPropsGroup, name="Screws")
 
 
-def get_color_from_theme(color_name: str) -> Sequence[float]:
+def _get_color_from_theme(color_name: str) -> Sequence[float]:
     theme = bpy.context.preferences.themes[0]
     # theme.properties.space.back
     # theme.user_interface.wcol_num.inner
@@ -442,42 +456,42 @@ def get_color_from_theme(color_name: str) -> Sequence[float]:
     }[color_name]
 
 
-def fill_colors_from_theme(self: "OverlayColors", _) -> None:
-    self.main = get_color_from_theme("main")
-    self.key = get_color_from_theme("key")
-    self.val = get_color_from_theme("val")
-    self.bg = get_color_from_theme("bg")
+def _fill_colors_from_theme(self: "OverlayColors", _) -> None:
+    self.main = _get_color_from_theme("main")
+    self.key = _get_color_from_theme("key")
+    self.val = _get_color_from_theme("val")
+    self.bg = _get_color_from_theme("bg")
 
 
-def get_main_color(self: "OverlayColors") -> Sequence[float]:
-    return get_color_from_theme("main") if self.use_from_theme else self["main"]
+def _get_main_color(self: "OverlayColors") -> Sequence[float]:
+    return _get_color_from_theme("main") if self.use_from_theme else self["main"]
 
 
-def get_key_color(self: "OverlayColors") -> Sequence[float]:
-    return get_color_from_theme("key") if self.use_from_theme else self["key"]
+def _get_key_color(self: "OverlayColors") -> Sequence[float]:
+    return _get_color_from_theme("key") if self.use_from_theme else self["key"]
 
 
-def get_val_color(self: "OverlayColors") -> Sequence[float]:
-    return get_color_from_theme("val") if self.use_from_theme else self["val"]
+def _get_val_color(self: "OverlayColors") -> Sequence[float]:
+    return _get_color_from_theme("val") if self.use_from_theme else self["val"]
 
 
-def get_bg_color(self: "OverlayColors") -> Sequence[float]:
-    return get_color_from_theme("bg") if self.use_from_theme else self["bg"]
+def _get_bg_color(self: "OverlayColors") -> Sequence[float]:
+    return _get_color_from_theme("bg") if self.use_from_theme else self["bg"]
 
 
-def set_main_color(self: "OverlayColors", value: float) -> None:
+def _set_main_color(self: "OverlayColors", value: float) -> None:
     self["main"] = value
 
 
-def set_key_color(self: "OverlayColors", value: float) -> None:
+def _set_key_color(self: "OverlayColors", value: float) -> None:
     self["key"] = value
 
 
-def set_val_color(self: "OverlayColors", value: float) -> None:
+def _set_val_color(self: "OverlayColors", value: float) -> None:
     self["val"] = value
 
 
-def set_bg_color(self: "OverlayColors", value: float) -> None:
+def _set_bg_color(self: "OverlayColors", value: float) -> None:
     self["bg"] = value
 
 
@@ -493,7 +507,7 @@ class OverlayColors(bpy.types.PropertyGroup):
             name="Use Colors from Theme",
             description="Use overlay colors from the current blender theme colors",
             default=True,
-            update=fill_colors_from_theme,
+            update=_fill_colors_from_theme,
         )
         main: bpy.props.FloatVectorProperty(
             name="Font Color",
@@ -502,8 +516,8 @@ class OverlayColors(bpy.types.PropertyGroup):
             min=0.0,
             max=1.0,
             size=4,
-            get=get_main_color,
-            set=set_main_color,
+            get=_get_main_color,
+            set=_set_main_color,
         )
         key: bpy.props.FloatVectorProperty(
             name="Key Color",
@@ -512,8 +526,8 @@ class OverlayColors(bpy.types.PropertyGroup):
             min=0.0,
             max=1.0,
             size=4,
-            get=get_key_color,
-            set=set_key_color,
+            get=_get_key_color,
+            set=_set_key_color,
         )
         val: bpy.props.FloatVectorProperty(
             name="Value Color",
@@ -522,8 +536,8 @@ class OverlayColors(bpy.types.PropertyGroup):
             min=0.0,
             max=1.0,
             size=4,
-            get=get_val_color,
-            set=set_val_color,
+            get=_get_val_color,
+            set=_set_val_color,
         )
         bg: bpy.props.FloatVectorProperty(
             name="Background Color",
@@ -532,8 +546,8 @@ class OverlayColors(bpy.types.PropertyGroup):
             min=0.0,
             max=1.0,
             size=4,
-            get=get_bg_color,
-            set=set_bg_color,
+            get=_get_bg_color,
+            set=_set_bg_color,
         )
 
 
@@ -546,12 +560,14 @@ class ModalKeyMapItem(bpy.types.PropertyGroup):
         ctrl: bool
         shift: bool
     else:
+        # Label of the keymap item to draw in input field in preferences.
         label: bpy.props.StringProperty()
         tag: bpy.props.StringProperty()
+        # Value of the keymap item, i.e. Event type.
         type: bpy.props.EnumProperty(
             name="Type",
             description="Type of event",
-            items=modal_key_items,
+            items=(*_yield_event_type_enum_property_items(),),
         )
 
         alt: bpy.props.BoolProperty(description="Alt key pressed", name="Alt", default=False)
@@ -566,7 +582,7 @@ class AddonKeyMap(bpy.types.PropertyGroup):
         keymap_items: bpy.props.CollectionProperty(type=ModalKeyMapItem)
 
 
-classes = (
+_classes = (
     RadialArrayPropsGroup,
     RadialDuplicatesPropsGroup,
     RadialScrewPropsGroup,
@@ -580,7 +596,7 @@ classes = (
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
     bpy.types.Object.radial_duplicator = bpy.props.PointerProperty(type=RadialCollections, name="RadialDuplicator")  # pyright: ignore[reportAttributeAccessIssue]
@@ -589,5 +605,5 @@ def register():
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)

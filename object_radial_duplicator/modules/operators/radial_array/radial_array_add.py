@@ -207,18 +207,18 @@ class RADDUPLCIATOR_OT_radial_array_add(bpy.types.Operator):
         layout.prop(self, "pivot_point")
 
 
-classes = (RADDUPLCIATOR_OT_radial_array_add,)
+_classes = (RADDUPLCIATOR_OT_radial_array_add,)
 
 
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)

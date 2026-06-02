@@ -72,18 +72,18 @@ class RADDUPLCIATOR_OT_radial_duplicates_set_pivot_point(bpy.types.Operator):
         return {'FINISHED'}
 
 
-classes = (RADDUPLCIATOR_OT_radial_duplicates_set_pivot_point,)
+_classes = (RADDUPLCIATOR_OT_radial_duplicates_set_pivot_point,)
 
 
 def register():
     from bpy.utils import register_class
 
-    for cls in classes:
+    for cls in _classes:
         register_class(cls)
 
 
 def unregister():
     from bpy.utils import unregister_class
 
-    for cls in classes:
+    for cls in _classes:
         unregister_class(cls)
